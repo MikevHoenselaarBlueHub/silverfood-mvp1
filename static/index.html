@@ -1,0 +1,81 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silverfood - Gezonde Receptenanalyse</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="header-content">
+                <img src="https://www.silverfooduniversum.nl/wp-content/uploads/2022/03/silverfooduniversum-logo-white.png" 
+                     alt="Silverfood Logo" class="logo">
+                <h1>Receptenanalyse</h1>
+                <p class="subtitle">Ontdek gezondere alternatieven voor je recepten</p>
+            </div>
+        </header>
+
+        <main class="main">
+            <div class="input-section">
+                <div class="input-group">
+                    <label for="recipeUrl">Recept URL</label>
+                    <input type="url" 
+                           id="recipeUrl" 
+                           placeholder="Plak hier de URL van je recept (bijv. van Allerhande)"
+                           value="">
+                    <button id="analyzeBtn" class="btn-primary">
+                        <span class="btn-text">Analyseer Recept</span>
+                        <div class="loader" style="display: none;"></div>
+                    </button>
+                </div>
+            </div>
+
+            <div id="results" class="results" style="display: none;">
+                <div class="results-header">
+                    <h2 id="recipeTitle">Recept Analyse</h2>
+                    <div class="health-score">
+                        <div class="score-circle">
+                            <span id="healthScore">0</span>
+                            <small>/10</small>
+                        </div>
+                        <div class="score-label">Gezondheidsscore</div>
+                    </div>
+                </div>
+
+                <div class="health-explanation">
+                    <h3>Hoe komen we tot deze score?</h3>
+                    <div id="healthExplanation"></div>
+                </div>
+
+                <div class="ingredients-section">
+                    <h3>Alle Ingrediënten</h3>
+                    <div id="allIngredients" class="ingredients-list"></div>
+                </div>
+
+                <div class="swaps-section" id="swapsSection" style="display: none;">
+                    <h3>Aanbevolen Vervangingen</h3>
+                    <div id="swapsList" class="swaps-list"></div>
+                </div>
+            </div>
+
+            <div id="error" class="error" style="display: none;">
+                <div class="error-content">
+                    <h3>Er is iets misgegaan</h3>
+                    <p id="errorMessage"></p>
+                    <button onclick="hideError()" class="btn-secondary">Probeer opnieuw</button>
+                </div>
+            </div>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2024 Silverfood Universum. Gezond eten voor iedereen.</p>
+        </footer>
+    </div>
+
+    <script src="/static/script.js"></script>
+</body>
+</html>

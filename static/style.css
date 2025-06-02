@@ -1,0 +1,443 @@
+
+:root {
+    --primary-color: rgb(245, 128, 41);
+    --primary-light: rgba(245, 128, 41, 0.1);
+    --secondary-color: #f8f9fa;
+    --success-color: #28a745;
+    --warning-color: #ffc107;
+    --danger-color: #dc3545;
+    --dark-color: #212529;
+    --light-color: #f8f9fa;
+    --border-color: #dee2e6;
+    --shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    --transition: all 0.3s ease;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    line-height: 1.7;
+    color: var(--dark-color);
+    background: linear-gradient(135deg, var(--primary-light) 0%, var(--secondary-color) 100%);
+    min-height: 100vh;
+    /* Optimalisaties voor senioren */
+    font-size: 18px; /* Grotere basis tekst */
+    letter-spacing: 0.5px; /* Betere leesbaarheid */
+}
+
+.container {
+    max-width: 1000px; /* Smallere container voor betere focus */
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* Header */
+.header {
+    background: var(--primary-color);
+    color: white;
+    padding: 40px 0;
+    text-align: center;
+    border-radius: 20px;
+    margin-bottom: 40px;
+    box-shadow: var(--shadow);
+}
+
+.header-content h1 {
+    font-size: 3rem; /* Grotere titel */
+    font-weight: 700;
+    margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.logo {
+    height: 60px; /* Groter logo */
+    margin-bottom: 20px;
+    filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+}
+
+.subtitle {
+    font-size: 1.4rem; /* Grotere subtitle */
+    opacity: 0.95;
+    font-weight: 400;
+    margin-bottom: 0;
+}
+
+/* Input Section */
+.input-section {
+    background: white;
+    padding: 50px; /* Meer padding */
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 20px; /* Meer ruimte tussen elementen */
+}
+
+.input-group label {
+    font-size: 1.3rem; /* Grotere labels */
+    font-weight: 600;
+    color: var(--dark-color);
+    margin-bottom: 10px;
+}
+
+.input-group input {
+    padding: 20px 25px; /* Grotere input velden */
+    border: 3px solid var(--border-color); /* Dikkere border */
+    border-radius: 12px;
+    font-size: 1.1rem; /* Grotere tekst in input */
+    transition: var(--transition);
+    background: white;
+    min-height: 60px; /* Minimale hoogte */
+}
+
+.input-group input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 4px rgba(245, 128, 41, 0.2); /* Duidelijke focus indicator */
+}
+
+.btn-primary {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 20px 40px; /* Grotere buttons */
+    border-radius: 12px;
+    font-size: 1.2rem; /* Grotere tekst */
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    min-height: 60px; /* Consistente hoogte */
+    box-shadow: var(--shadow);
+}
+
+.btn-primary:hover:not(:disabled) {
+    background: #e8721a;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.loader {
+    width: 24px; /* Grotere loader */
+    height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top: 3px solid white;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Results */
+.results {
+    background: white;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    margin-bottom: 40px;
+    overflow: hidden;
+}
+
+.results-header {
+    background: var(--primary-light);
+    padding: 40px; /* Meer padding */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 30px; /* Meer ruimte */
+}
+
+.results-header h2 {
+    font-size: 2.2rem; /* Grotere titel */
+    color: var(--dark-color);
+    margin: 0;
+    font-weight: 700;
+}
+
+.health-score {
+    text-align: center;
+}
+
+.score-circle {
+    width: 100px; /* Grotere cirkel */
+    height: 100px;
+    border-radius: 50%;
+    background: var(--primary-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.8rem; /* Grotere score tekst */
+    font-weight: 700;
+    margin: 0 auto 15px;
+    box-shadow: var(--shadow);
+}
+
+.score-circle small {
+    font-size: 1rem; /* Grotere small tekst */
+    opacity: 0.8;
+}
+
+.score-label {
+    font-weight: 600;
+    color: var(--dark-color);
+    font-size: 1.1rem; /* Grotere label */
+}
+
+/* Health Explanation */
+.health-explanation {
+    padding: 40px; /* Meer padding */
+    border-bottom: 2px solid var(--border-color); /* Dikkere border */
+}
+
+.health-explanation h3 {
+    margin-bottom: 20px;
+    color: var(--dark-color);
+    font-size: 1.6rem; /* Grotere titel */
+}
+
+.explanation-item {
+    margin-bottom: 15px; /* Meer ruimte */
+    padding: 20px; /* Meer padding */
+    background: var(--light-color);
+    border-radius: 12px;
+    font-size: 1.1rem; /* Grotere tekst */
+    line-height: 1.6;
+}
+
+/* Ingredients */
+.ingredients-section {
+    padding: 40px; /* Meer padding */
+}
+
+.ingredients-section h3 {
+    margin-bottom: 25px; /* Meer ruimte */
+    color: var(--dark-color);
+    font-size: 1.6rem; /* Grotere titel */
+}
+
+.ingredient-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px; /* Meer padding */
+    margin-bottom: 15px; /* Meer ruimte */
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    border: 2px solid transparent; /* Voor betere focus */
+}
+
+.ingredient-item:hover {
+    transform: translateX(5px);
+}
+
+.ingredient-item.healthy {
+    background: rgba(40, 167, 69, 0.15); /* Meer contrast */
+    border-left: 6px solid var(--success-color); /* Dikkere accent */
+}
+
+.ingredient-item.neutral {
+    background: rgba(255, 193, 7, 0.15);
+    border-left: 6px solid var(--warning-color);
+}
+
+.ingredient-item.unhealthy {
+    background: rgba(220, 53, 69, 0.15);
+    border-left: 6px solid var(--danger-color);
+}
+
+.ingredient-info {
+    flex: 1;
+}
+
+.ingredient-name {
+    font-weight: 700; /* Meer gewicht */
+    margin-bottom: 8px;
+    font-size: 1.2rem; /* Grotere naam */
+}
+
+.ingredient-details {
+    font-size: 1rem; /* Grotere details */
+    color: #555; /* Beter contrast */
+}
+
+.health-badge {
+    background: white;
+    padding: 10px 18px; /* Grotere badge */
+    border-radius: 25px;
+    font-weight: 700;
+    font-size: 1rem; /* Grotere tekst */
+    margin-left: 20px;
+    border: 2px solid var(--border-color);
+}
+
+.substitution {
+    font-size: 1rem; /* Grotere substitutie tekst */
+    color: var(--success-color);
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+/* Swaps Section */
+.swaps-section {
+    padding: 40px; /* Meer padding */
+    background: var(--light-color);
+}
+
+.swaps-section h3 {
+    margin-bottom: 25px; /* Meer ruimte */
+    color: var(--dark-color);
+    font-size: 1.6rem; /* Grotere titel */
+}
+
+.swap-item {
+    background: white;
+    padding: 30px; /* Meer padding */
+    border-radius: 15px;
+    margin-bottom: 20px; /* Meer ruimte */
+    box-shadow: 0 3px 8px rgba(0,0,0,0.1);
+    border: 2px solid var(--border-color);
+}
+
+.swap-from {
+    font-weight: 700;
+    color: var(--danger-color);
+    margin-bottom: 15px; /* Meer ruimte */
+    font-size: 1.1rem; /* Grotere tekst */
+}
+
+.swap-to {
+    color: var(--success-color);
+    font-weight: 600;
+    font-size: 1.1rem; /* Grotere tekst */
+}
+
+.swap-arrow {
+    margin: 15px 0; /* Meer ruimte */
+    text-align: center;
+    color: var(--primary-color);
+    font-size: 1.5rem; /* Grotere pijl */
+}
+
+/* Error */
+.error {
+    background: white;
+    border-radius: 20px;
+    box-shadow: var(--shadow);
+    padding: 50px; /* Meer padding */
+    text-align: center;
+    margin-bottom: 40px;
+    border: 3px solid var(--danger-color); /* Duidelijke error border */
+}
+
+.error-content h3 {
+    color: var(--danger-color);
+    margin-bottom: 20px;
+    font-size: 1.8rem; /* Grotere error titel */
+}
+
+.error-content p {
+    font-size: 1.2rem; /* Grotere error tekst */
+    margin-bottom: 25px;
+}
+
+.btn-secondary {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 15px 30px; /* Grotere secundaire button */
+    border-radius: 10px;
+    cursor: pointer;
+    margin-top: 20px;
+    font-size: 1.1rem; /* Grotere tekst */
+    font-weight: 600;
+}
+
+.btn-secondary:hover {
+    background: #5a6268;
+    transform: translateY(-1px);
+}
+
+/* Footer */
+.footer {
+    text-align: center;
+    padding: 40px 0; /* Meer padding */
+    color: #666;
+    font-size: 1rem; /* Grotere footer tekst */
+}
+
+/* Responsive voor tablets en mobiel */
+@media (max-width: 768px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .header-content h1 {
+        font-size: 2.5rem; /* Aangepaste grootte voor mobiel */
+    }
+    
+    .input-section {
+        padding: 30px; /* Minder padding op mobiel */
+    }
+    
+    .results-header {
+        flex-direction: column;
+        text-align: center;
+        padding: 30px;
+    }
+    
+    .ingredient-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+        padding: 20px;
+    }
+    
+    .health-badge {
+        margin-left: 0;
+        margin-top: 10px;
+    }
+    
+    body {
+        font-size: 16px; /* Iets kleiner op mobiel maar nog steeds groot */
+    }
+}
+
+/* Focus styles voor toetsenbord navigatie */
+button:focus, input:focus {
+    outline: 3px solid var(--primary-color);
+    outline-offset: 2px;
+}
+
+/* High contrast mode ondersteuning */
+@media (prefers-contrast: high) {
+    :root {
+        --border-color: #000;
+        --dark-color: #000;
+    }
+    
+    .ingredient-item {
+        border: 2px solid #000;
+    }
+}
