@@ -73,6 +73,7 @@ def setup_selenium_driver():
         chrome_options.add_argument('--headless')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.binary_location = '/usr/bin/chromium-browser'
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--disable-extensions')
@@ -103,8 +104,10 @@ def setup_selenium_driver():
                     from selenium.webdriver.chrome.service import Service
                     service = Service(path)
                     driver = webdriver.Chrome(service=service, options=chrome_options)
+                logger.info(f"ChromeDriver found at: {path}")
                 break
-            except:
+            except Exception as e:
+                logger.debug(f"Failed to load ChromeDriver from {path}: {e}")
                 continue
         
         if driver:

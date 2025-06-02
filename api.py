@@ -162,6 +162,11 @@ async def analyse_endpoint(request: Request, url: str):
                 status_code=400,
                 detail="Geen ingrediënten gevonden op deze pagina. Dit lijkt geen recept-pagina te zijn, of de website gebruikt een onbekende structuur. Probeer een andere recept-URL."
             )
+        elif "not valid json" in error_message.lower() or "unexpected token" in error_message.lower():
+            raise HTTPException(
+                status_code=403,
+                detail="Deze website blokkeert automatische toegang en stuurt HTML in plaats van data terug. Probeer een andere recept-URL of kopieer de ingrediënten handmatig."
+            )
         elif "403" in error_message or "forbidden" in error_message.lower():
             raise HTTPException(
                 status_code=403,
