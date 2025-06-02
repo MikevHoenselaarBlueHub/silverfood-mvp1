@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+recipe-scrapers
+pandas
+rapidfuzz
+requests
