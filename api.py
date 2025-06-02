@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Silverfood-API", 
     description="Adaptieve receptenanalyse API voor alle receptsites",
-    version="3.0.0"
+    version="3.1.0"
 )
 
 # Beveiligingsmiddleware
