@@ -11,18 +11,20 @@ const errorMessage = document.getElementById('errorMessage');
 let healthTips = [];
 let currentTipIndex = 0;
 let tipInterval = null;
-let config = { health_tips_interval_seconds: 2, show_health_tips: true };
+let config = { 
+    health_tips: { interval_seconds: 2, show_tips: true, fade_duration_ms: 500 },
+    ui: { default_url: '', examples: [] }
+};
 
-// Voorbeelden van ondersteunde URLs
-const exampleUrls = [
+// Voorbeelden van ondersteunde URLs (fallback)
+let exampleUrls = [
     'https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata',
     'https://www.jumbo.com/recepten/pasta-met-doperwten-ricotta-en-munt-999966',
     'https://www.leukerecepten.nl/recepten/couscous-salade-met-feta/',
     'https://www.24kitchen.nl/recepten/pasta-pesto-met-zongedroogde-tomaten'
 ];
 
-// Vul automatisch de URL in als voorbeeld
-recipeUrlInput.value = exampleUrls[0];
+// Wordt ingesteld na config laden
 recipeUrlInput.placeholder = 'Voer een recept-URL in van elke website...';
 
 // Event listeners
@@ -168,7 +170,7 @@ function showLoadingMessage() {
         display: flex;
         align-items: center;
         justify-content: center;
-        transition: opacity ${config.tips_fade_duration_ms || 500}ms ease-in-out;
+        transition: opacity ${config.health_tips.fade_duration_ms || 500}ms ease-in-out;
         font-weight: 500;
     `;
     
@@ -459,10 +461,22 @@ async function loadConfiguration() {
     try {
         const configResponse = await fetch('/static/config.json');
         if (configResponse.ok) {
-            config = await configResponse.json();
+            const loadedConfig = await configResponse.json();
+            config = { ...config, ...loadedConfig }; // Merge met defaults
+            
+            // Update URL examples uit config
+            if (config.examples && config.examples.length > 0) {
+                exampleUrls = config.examples;
+            }
+            
+            // Stel default URL in uit config
+            const defaultUrl = config.ui.default_url || exampleUrls[0];
+            recipeUrlInput.value = defaultUrl;
         }
     } catch (error) {
         console.log('Configuratie laden mislukt, gebruik standaardwaarden');
+        // Vul default URL in als fallback
+        recipeUrlInput.value = exampleUrls[0];
     }
 }
 
@@ -484,7 +498,7 @@ async function loadHealthTips() {
 }
 
 function showHealthTip() {
-    if (!config.show_health_tips || healthTips.length === 0) return;
+    if (!config.health_tips.show_tips || healthTips.length === 0) return;
     
     const tipContainer = document.getElementById('healthTip');
     if (!tipContainer) return;
@@ -503,7 +517,7 @@ function showHealthTip() {
 }
 
 function startHealthTips() {
-    if (!config.show_health_tips || healthTips.length === 0) return;
+    if (!config.health_tips.show_tips || healthTips.length === 0) return;
     
     // Stop bestaande interval
     if (tipInterval) {
@@ -514,7 +528,7 @@ function startHealthTips() {
     showHealthTip();
     
     // Start interval
-    tipInterval = setInterval(showHealthTip, config.health_tips_interval_seconds * 1000);
+    tipInterval = setInterval(showHealthTip, config.health_tips.interval_seconds * 1000);
 }
 
 function stopHealthTips() {

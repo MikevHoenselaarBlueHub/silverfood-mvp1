@@ -1,6 +1,42 @@
 
 {
-  "health_tips_interval_seconds": 2,
-  "show_health_tips": true,
-  "tips_fade_duration_ms": 500
+  "health_tips": {
+    "interval_seconds": 2,
+    "show_tips": true,
+    "fade_duration_ms": 500
+  },
+  "ui": {
+    "default_url": "https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata",
+    "max_url_length": 500,
+    "enable_url_validation": true,
+    "show_loading_messages": true,
+    "scroll_to_results": true
+  },
+  "analysis": {
+    "min_ingredients_required": 3,
+    "max_ingredients_display": 20,
+    "selenium_retry_attempts": 2,
+    "requests_retry_attempts": 2,
+    "page_load_timeout_seconds": 30,
+    "selenium_wait_seconds": 15
+  },
+  "api": {
+    "rate_limit_requests": 8,
+    "rate_limit_window_seconds": 60,
+    "enable_debug_logging": true,
+    "max_concurrent_requests": 5
+  },
+  "scraping": {
+    "random_delay_min_seconds": 1,
+    "random_delay_max_seconds": 3,
+    "user_agent_rotation": true,
+    "enable_anti_detection": true,
+    "selenium_single_process": true
+  },
+  "health_scoring": {
+    "use_openfoodfacts_api": true,
+    "api_timeout_seconds": 10,
+    "cache_nutrition_data": true,
+    "default_unknown_score": 5
+  }
 }

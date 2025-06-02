@@ -6,11 +6,23 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import time
 import logging
+import json
 from analyse import analyse
 from urllib.parse import urlparse
 
+# Laad configuratie
+try:
+    with open("config.json", encoding="utf-8") as f:
+        CONFIG = json.load(f)
+except FileNotFoundError:
+    CONFIG = {
+        "api": {"rate_limit_requests": 8, "rate_limit_window_seconds": 60, "enable_debug_logging": True},
+        "ui": {"max_url_length": 500}
+    }
+
 # Logging configuratie
-logging.basicConfig(level=logging.INFO)
+log_level = logging.DEBUG if CONFIG.get("api", {}).get("enable_debug_logging", True) else logging.INFO
+logging.basicConfig(level=log_level)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
@@ -91,8 +103,10 @@ async def analyse_endpoint(request: Request, url: str):
     """Analyseer recept van URL met adaptieve detectie"""
     client_ip = request.client.host
     
-    # Rate limiting
-    if not rate_limit_check(client_ip, max_requests=8, window_seconds=60):
+    # Rate limiting from config
+    max_req = CONFIG.get("api", {}).get("rate_limit_requests", 8)
+    window_sec = CONFIG.get("api", {}).get("rate_limit_window_seconds", 60)
+    if not rate_limit_check(client_ip, max_requests=max_req, window_seconds=window_sec):
         logger.warning(f"Rate limit exceeded for {client_ip}")
         raise HTTPException(
             status_code=429, 
@@ -115,8 +129,9 @@ async def analyse_endpoint(request: Request, url: str):
             detail="Ongeldige URL format. De URL moet beginnen met http:// of https:// en een domein bevatten."
         )
     
-    # Maximale URL lengte
-    if len(url) > 500:
+    # Maximale URL lengte from config
+    max_length = CONFIG.get("ui", {}).get("max_url_length", 500)
+    if len(url) > max_length:
         raise HTTPException(
             status_code=400,
             detail="URL te lang. Maximaal 500 karakters toegestaan."

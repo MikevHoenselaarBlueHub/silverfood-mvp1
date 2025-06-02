@@ -15,6 +15,10 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load config file
+with open("config.json", encoding="utf-8") as f:
+    CONFIG = json.load(f)
+
 # Laad vervanglijst
 with open("substitutions.json", encoding="utf-8") as f:
     SUBS = json.load(f)
@@ -70,7 +74,7 @@ def setup_selenium_driver():
     """Setup Selenium Chrome driver with options optimized for Replit"""
     try:
         chrome_options = Options()
-        
+
         # Replit specific Chrome setup
         chrome_options.add_argument('--headless=new')  # Use new headless mode
         chrome_options.add_argument('--no-sandbox')
@@ -95,7 +99,7 @@ def setup_selenium_driver():
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
-        
+
         # Set Chrome binary location for Replit/Nix
         import shutil
         chrome_binary = shutil.which('chromium') or shutil.which('chrome') or shutil.which('google-chrome')
@@ -104,10 +108,10 @@ def setup_selenium_driver():
             logger.info(f"Chrome binary found at: {chrome_binary}")
         else:
             logger.warning("Chrome binary not found in PATH")
-        
+
         # Try to find ChromeDriver
         chromedriver_path = shutil.which('chromedriver')
-        
+
         driver = None
         try:
             if chromedriver_path:
@@ -119,19 +123,19 @@ def setup_selenium_driver():
                 # Fallback: try without explicit service
                 driver = webdriver.Chrome(options=chrome_options)
                 logger.info("Using default ChromeDriver")
-            
+
             # Anti-detection measures
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
             driver.execute_cdp_cmd('Network.setUserAgentOverride', {
                 "userAgent": get_random_user_agent()
             })
-            
+
             return driver
-            
+
         except Exception as e:
             logger.error(f"Failed to initialize Chrome driver: {e}")
             return None
-            
+
     except Exception as e:
         logger.error(f"Failed to setup Selenium driver: {e}")
         return None
@@ -143,15 +147,15 @@ def selenium_scrape_ingredients(url: str):
         driver = setup_selenium_driver()
         if not driver:
             return [], ""
-        
+
         logger.info(f"Using Selenium for {url}")
-        
+
         # Set page load timeout
         driver.set_page_load_timeout(30)
         driver.implicitly_wait(10)
-        
+
         driver.get(url)
-        
+
         # Wait for page to load with better error handling
         try:
             WebDriverWait(driver, 15).until(
@@ -159,13 +163,13 @@ def selenium_scrape_ingredients(url: str):
             )
         except TimeoutException:
             logger.warning("Page load timeout, trying to continue anyway")
-        
+
         # Progressive wait for dynamic content
         for wait_time in [2, 3, 5]:
             time.sleep(wait_time)
             if driver.page_source and len(driver.page_source) > 1000:
                 break
-        
+
         # Get page source and title with error handling
         try:
             html = driver.page_source
@@ -174,12 +178,12 @@ def selenium_scrape_ingredients(url: str):
             logger.warning(f"Error getting page content: {e}")
             html = ""
             title = "Recept"
-        
+
         soup = BeautifulSoup(html, 'html.parser')
-        
+
         domain = get_domain(url)
         ingredients = []
-        
+
         # Domain-specific selectors
         domain_selectors = {
             'ah.nl': [
@@ -201,7 +205,7 @@ def selenium_scrape_ingredients(url: str):
                 '.recipe-content li'
             ]
         }
-        
+
         # Generic selectors
         generic_selectors = [
             '[class*="ingredient"]',
@@ -218,9 +222,9 @@ def selenium_scrape_ingredients(url: str):
             '.recipe-list li',
             '.step li'
         ]
-        
+
         selectors_to_try = domain_selectors.get(domain, []) + generic_selectors
-        
+
         for selector in selectors_to_try:
             try:
                 elements = soup.select(selector)
@@ -230,15 +234,15 @@ def selenium_scrape_ingredients(url: str):
                         clean_text = clean_ingredient_text(text)
                         if clean_text and clean_text not in ingredients:
                             ingredients.append(clean_text)
-                
+
                 if len(ingredients) >= 5:
                     logger.info(f"Selenium success with selector: {selector} - Found {len(ingredients)} ingredients")
                     break
             except Exception:
                 continue
-        
+
         return ingredients, title
-        
+
     except Exception as e:
         logger.error(f"Selenium scraping failed: {e}")
         return [], ""
@@ -268,32 +272,32 @@ def clean_ingredient_text(text):
                 text = text.decode('latin-1', errors='ignore')
             except:
                 return None
-    
+
     # Remove non-printable characters but keep basic punctuation
     text = ''.join(char for char in text if char.isprintable() or char.isspace())
-    
+
     # Remove garbled text patterns - stricter check
     if any(ord(char) > 1000 for char in text):
         return None
-    
+
     # Check for control characters or weird encoding artifacts
     if any(ord(char) < 32 and char not in '\t\n\r' for char in text):
         return None
-        
+
     # Check for gibberish (too many non-alphabetic chars)
     if len(text) > 0:
         alpha_ratio = sum(c.isalpha() or c.isspace() or c in ',-().' for c in text) / len(text)
         if alpha_ratio < 0.5:
             return None
-    
+
     # Filter out obvious garbage text patterns
     garbage_patterns = [
-        r'[����]+',  # Common encoding artifacts
+        r'[]+',  # Common encoding artifacts
         r'[\x00-\x1f\x7f-\x9f]+',  # Control characters
         r'^[^a-zA-Z]*$',  # No letters at all
         r'[^\w\s\-,().]+',  # Too many special chars
     ]
-    
+
     for pattern in garbage_patterns:
         if re.search(pattern, text):
             return None
@@ -404,7 +408,7 @@ def smart_ingredient_scraping(url: str):
             time.sleep(random.uniform(1, 3))  # Random delay
 
             response = session.get(url, timeout=30, allow_redirects=True)
-            
+
             # Check for blocked/forbidden responses
             if response.status_code == 403:
                 logger.warning(f"403 Forbidden - website blocking access")
@@ -413,9 +417,9 @@ def smart_ingredient_scraping(url: str):
                 logger.warning(f"429 Rate limited - waiting longer")
                 time.sleep(10)
                 continue
-                
+
             response.raise_for_status()
-            
+
             # Additional check for empty or invalid content
             if len(response.content) < 100:
                 logger.warning(f"Response too short: {len(response.content)} bytes")
@@ -523,7 +527,7 @@ def smart_ingredient_scraping(url: str):
     if len(ingredients) < 3:
         logger.info("Requests failed, trying Selenium...")
         max_selenium_retries = 2
-        
+
         for retry in range(max_selenium_retries):
             try:
                 selenium_ingredients, selenium_title = selenium_scrape_ingredients(url)
@@ -570,13 +574,13 @@ def extract_ingredients_from_text(url):
         import requests
         response = requests.get(url, timeout=10, headers={'User-Agent': get_random_user_agent()})
         text = response.text.lower()
-        
+
         # Look for common ingredient patterns in text
         ingredient_patterns = [
             r'(\d+\s*(?:gram|g|ml|eetlepel|el|theelepel|tl|kopje|blik|pak|zakje)\s+)([a-zA-Zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\s]{3,30})',
             r'(\d+\s*)([a-zA-Zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\s]{3,30})\s*(?:gram|g|ml|eetlepel|el|theelepel|tl|kopje|blik|pak|zakje)',
         ]
-        
+
         found_ingredients = []
         for pattern in ingredient_patterns:
             matches = re.findall(pattern, text, re.IGNORECASE)
@@ -586,7 +590,7 @@ def extract_ingredients_from_text(url):
                     clean_ingredient = clean_ingredient_text(ingredient)
                     if clean_ingredient and clean_ingredient not in found_ingredients:
                         found_ingredients.append(clean_ingredient)
-        
+
         return found_ingredients[:20]  # Limit to 20 ingredients
     except:
         return []
@@ -603,14 +607,14 @@ def get_nutrition_data(ingredient_name):
             'json': 1,
             'page_size': 1
         }
-        
+
         response = requests.get(search_url, params=params, timeout=10)
         data = response.json()
-        
+
         if data.get('products') and len(data['products']) > 0:
             product = data['products'][0]
             nutriments = product.get('nutriments', {})
-            
+
             return {
                 'calories': nutriments.get('energy-kcal_100g', 0),
                 'fat': nutriments.get('fat_100g', 0),
@@ -623,52 +627,52 @@ def get_nutrition_data(ingredient_name):
             }
     except Exception as e:
         logger.warning(f"Failed to get nutrition data for {ingredient_name}: {e}")
-    
+
     return None
 
 def calculate_health_score_from_nutrition(nutrition_data):
     """Bereken gezondheidsscore op basis van voedingswaarden"""
     if not nutrition_data:
         return 5
-    
+
     score = 10  # Start with perfect score
-    
+
     # Penalty for high calories (more than 300 kcal/100g)
     if nutrition_data['calories'] > 300:
         score -= 1
     elif nutrition_data['calories'] > 500:
         score -= 2
-    
+
     # Penalty for high saturated fat (more than 5g/100g)
     if nutrition_data['saturated_fat'] > 5:
         score -= 1
     elif nutrition_data['saturated_fat'] > 10:
         score -= 2
-    
+
     # Penalty for high sugar (more than 10g/100g)
     if nutrition_data['sugar'] > 10:
         score -= 1
     elif nutrition_data['sugar'] > 20:
         score -= 2
-    
+
     # Penalty for high salt (more than 1g/100g)
     if nutrition_data['salt'] > 1:
         score -= 1
     elif nutrition_data['salt'] > 2:
         score -= 2
-    
+
     # Bonus for high fiber (more than 3g/100g)
     if nutrition_data['fiber'] > 3:
         score += 1
-    
+
     # Bonus for high protein (more than 10g/100g)
     if nutrition_data['protein'] > 10:
         score += 1
-    
+
     # NOVA group penalty (higher = more processed)
     nova_penalty = {1: 0, 2: -1, 3: -2, 4: -3}
     score += nova_penalty.get(nutrition_data['nova_group'], -1)
-    
+
     return max(1, min(10, score))
 
 def get_health_score(ingredient_name):
@@ -692,7 +696,7 @@ def get_health_score(ingredient_name):
         logger.info(f"Using API nutrition score for {ingredient_name}: {api_score}")
         return api_score
 
-    return 5
+    return CONFIG.get("health_scoring", {}).get("default_unknown_score", 5)
 
 def calculate_health_explanation(ingredients_with_scores):
     """Bereken uitleg voor gezondheidsscore"""
@@ -714,10 +718,10 @@ def calculate_health_explanation(ingredients_with_scores):
     total_ingredients = len(ingredients_with_scores)
     processed_count = sum(1 for ing in ingredients_with_scores if ing['health_score'] <= 4)
     natural_count = sum(1 for ing in ingredients_with_scores if ing['health_score'] >= 7)
-    
+
     if processed_count > total_ingredients * 0.5:
         explanations.append("🔍 Dit recept bevat veel bewerkte ingrediënten. Overweeg verse alternatieven.")
-    
+
     if natural_count > total_ingredients * 0.6:
         explanations.append("🌱 Excellent! Dit recept is rijk aan natuurlijke, onbewerkte ingrediënten.")
 
@@ -756,7 +760,7 @@ def analyse(url: str):
 
         # Process ingredients
         all_ingredients = []
-        swaps = []
+                swaps = []
 
         for line in ingredients_list:
             if not line or len(line.strip()) < 2:

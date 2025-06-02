@@ -1,6 +1,23 @@
 
 {
-  "health_tips_interval_seconds": 2,
-  "show_health_tips": true,
-  "tips_fade_duration_ms": 500
+  "health_tips": {
+    "interval_seconds": 2,
+    "show_tips": true,
+    "fade_duration_ms": 500
+  },
+  "ui": {
+    "default_url": "https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata",
+    "max_url_length": 500,
+    "enable_url_validation": true,
+    "show_loading_messages": true,
+    "scroll_to_results": true,
+    "keyboard_shortcuts": true,
+    "screen_reader_support": true
+  },
+  "examples": [
+    "https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata",
+    "https://www.jumbo.com/recepten/pasta-met-doperwten-ricotta-en-munt-999966",
+    "https://www.leukerecepten.nl/recepten/couscous-salade-met-feta/",
+    "https://www.24kitchen.nl/recepten/pasta-pesto-met-zongedroogde-tomaten"
+  ]
 }
