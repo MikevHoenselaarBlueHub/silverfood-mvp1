@@ -173,6 +173,147 @@ body {
     color: var(--dark-color);
     margin: 0;
     font-weight: 700;
+    flex: 1;
+}
+
+.print-btn {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 15px 25px;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.print-btn:hover {
+    background: #e8721a;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Nutrition Summary */
+.nutrition-summary {
+    padding: 40px;
+    border-bottom: 2px solid var(--border-color);
+    background: var(--light-color);
+}
+
+.nutrition-summary h3 {
+    margin-bottom: 25px;
+    color: var(--dark-color);
+    font-size: 1.6rem;
+    text-align: center;
+}
+
+.nutrition-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.nutrition-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    border-left: 4px solid var(--primary-color);
+}
+
+.nutrition-label {
+    font-weight: 600;
+    color: var(--dark-color);
+    font-size: 1rem;
+}
+
+.nutrition-value {
+    font-weight: 700;
+    color: var(--primary-color);
+    font-size: 1.1rem;
+}
+
+/* Health Goals */
+.health-goals {
+    padding: 40px;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.health-goals h3 {
+    margin-bottom: 25px;
+    color: var(--dark-color);
+    font-size: 1.6rem;
+    text-align: center;
+}
+
+.goals-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.goal-item {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.goal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.goal-title {
+    font-weight: 600;
+    font-size: 1.2rem;
+    color: var(--dark-color);
+}
+
+.goal-score {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: var(--primary-color);
+    background: var(--primary-light);
+    padding: 5px 12px;
+    border-radius: 20px;
+}
+
+.progress-bar {
+    height: 25px;
+    background: #e9ecef;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.progress-fill {
+    height: 100%;
+    border-radius: 15px;
+    transition: width 0.8s ease-in-out;
+    background: linear-gradient(90deg, currentColor 0%, currentColor 100%);
+    position: relative;
+}
+
+.progress-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(45deg, transparent 40%, rgba(255,255,255,0.1) 50%, transparent 60%);
 }
 
 .health-score {
@@ -280,6 +421,29 @@ body {
 .ingredient-details {
     font-size: 1rem; /* Grotere details */
     color: #555; /* Beter contrast */
+    margin-bottom: 8px;
+}
+
+.ingredient-nutrition {
+    font-size: 0.95rem;
+    color: #666;
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: rgba(40, 167, 69, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid var(--success-color);
+}
+
+.health-fact {
+    font-size: 0.95rem;
+    color: var(--success-color);
+    font-style: italic;
+    margin: 8px 0;
+    padding: 10px 12px;
+    background: rgba(40, 167, 69, 0.05);
+    border-radius: 8px;
+    border-left: 3px solid var(--success-color);
+    line-height: 1.4;
 }
 
 .health-badge {
@@ -290,6 +454,8 @@ body {
     font-size: 1rem; /* Grotere tekst */
     margin-left: 20px;
     border: 2px solid var(--border-color);
+    min-width: 60px;
+    text-align: center;
 }
 
 .substitution {
@@ -297,6 +463,10 @@ body {
     color: var(--success-color);
     font-weight: 600;
     margin-top: 8px;
+    padding: 8px 12px;
+    background: rgba(40, 167, 69, 0.1);
+    border-radius: 8px;
+    border-left: 3px solid var(--success-color);
 }
 
 /* Swaps Section */
@@ -412,6 +582,30 @@ body {
         flex-direction: column;
         text-align: center;
         padding: 30px;
+        gap: 20px;
+    }
+    
+    .results-header h2 {
+        font-size: 1.8rem;
+    }
+    
+    .nutrition-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .nutrition-item {
+        padding: 12px 15px;
+    }
+    
+    .goal-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+    
+    .goal-title {
+        font-size: 1.1rem;
     }
     
     .ingredient-item {
@@ -424,10 +618,41 @@ body {
     .health-badge {
         margin-left: 0;
         margin-top: 10px;
+        align-self: flex-end;
+    }
+    
+    .print-btn {
+        padding: 12px 20px;
+        font-size: 1rem;
     }
     
     body {
         font-size: 16px; /* Iets kleiner op mobiel maar nog steeds groot */
+    }
+}
+
+/* Print styles */
+@media print {
+    .print-btn {
+        display: none !important;
+    }
+    
+    .results {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+    
+    .ingredient-item {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+    
+    .nutrition-grid {
+        break-inside: avoid;
+    }
+    
+    .goal-item {
+        break-inside: avoid;
     }
 }
 

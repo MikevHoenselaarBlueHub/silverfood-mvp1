@@ -623,12 +623,53 @@ def get_nutrition_data(ingredient_name):
                 'fiber': nutriments.get('fiber_100g', 0),
                 'protein': nutriments.get('proteins_100g', 0),
                 'salt': nutriments.get('salt_100g', 0),
-                'nova_group': product.get('nova_group', 1)
+                'sodium': nutriments.get('sodium_100g', 0),
+                'carbohydrates': nutriments.get('carbohydrates_100g', 0),
+                'nova_group': product.get('nova_group', 1),
+                'potassium': nutriments.get('potassium_100g', 0),
+                'calcium': nutriments.get('calcium_100g', 0),
+                'iron': nutriments.get('iron_100g', 0),
+                'vitamin_c': nutriments.get('vitamin-c_100g', 0)
             }
     except Exception as e:
         logger.warning(f"Failed to get nutrition data for {ingredient_name}: {e}")
 
     return None
+
+def get_ingredient_health_facts(ingredient_name):
+    """Haal gezondheidsweetjes op voor een ingrediënt"""
+    health_facts = {
+        'tomaat': "Tomaten zijn rijk aan lycopeen, een krachtige antioxidant die het risico op hartziekten kan verlagen.",
+        'ui': "Uien bevatten quercetine, een flavonoïde die ontstekingsremmende eigenschappen heeft.",
+        'knoflook': "Knoflook kan helpen bij het verlagen van de bloeddruk en heeft antibacteriële eigenschappen.",
+        'spinazie': "Spinazie is rijk aan ijzer, foliumzuur en vitamine K, belangrijk voor botgezondheid.",
+        'wortel': "Wortelen bevatten bètacaroteen, dat wordt omgezet in vitamine A voor goede oogfunctie.",
+        'paprika': "Paprika's zijn een uitstekende bron van vitamine C, zelfs meer dan citrusvruchten.",
+        'courgette': "Courgettes zijn laag in calorieën en rijk aan kalium, goed voor een gezonde bloeddruk.",
+        'broccoli': "Broccoli bevat sulforafaan, een stof die mogelijk beschermt tegen bepaalde vormen van kanker.",
+        'avocado': "Avocado's bevatten gezonde enkelvoudig onverzadigde vetten die goed zijn voor het hart.",
+        'noten': "Noten zijn rijk aan omega-3 vetzuren en kunnen helpen bij het verlagen van cholesterol.",
+        'vis': "Vette vis bevat omega-3 vetzuren die belangrijk zijn voor de hersenfunctie.",
+        'yoghurt': "Yoghurt bevat probiotica die bijdragen aan een gezonde darmflora.",
+        'haver': "Haver bevat bètaglucaan, een vezel die helpt bij het verlagen van cholesterol.",
+        'bonen': "Bonen zijn rijk aan plantaardige eiwitten en vezels, goed voor spijsvertering.",
+        'quinoa': "Quinoa is een complete eiwitbron en bevat alle essentiële aminozuren."
+    }
+    
+    ingredient_lower = ingredient_name.lower()
+    for key, fact in health_facts.items():
+        if key in ingredient_lower:
+            return fact
+    
+    # Fallback algemene weetjes
+    if 'groente' in ingredient_lower or any(veg in ingredient_lower for veg in ['sla', 'andijvie', 'rucola']):
+        return "Groene bladgroenten zijn rijk aan foliumzuur en ijzer, essentieel voor energiemetabolisme."
+    elif 'fruit' in ingredient_lower:
+        return "Fruit bevat natuurlijke suikers, vezels en antioxidanten die bijdragen aan uw dagelijkse vitaminebehoefte."
+    elif 'vlees' in ingredient_lower:
+        return "Vlees is een goede bron van hoogwaardige eiwitten en vitamine B12."
+    
+    return "Dit ingrediënt draagt bij aan een gevarieerd en uitgebalanceerd voedingspatroon."
 
 def calculate_health_score_from_nutrition(nutrition_data):
     """Bereken gezondheidsscore op basis van voedingswaarden"""
@@ -698,6 +739,134 @@ def get_health_score(ingredient_name):
 
     return CONFIG.get("health_scoring", {}).get("default_unknown_score", 5)
 
+def calculate_health_goals_scores(total_nutrition):
+    """Bereken scores voor verschillende gezondheidsdoelen"""
+    if not total_nutrition:
+        return {}
+    
+    scores = {}
+    
+    # Gewicht verliezen (focus op lage calorieën, hoge vezels, lage suikers)
+    weight_loss_score = 10
+    if total_nutrition['calories'] > 400:
+        weight_loss_score -= 3
+    elif total_nutrition['calories'] > 600:
+        weight_loss_score -= 5
+    
+    if total_nutrition['sugar'] > 15:
+        weight_loss_score -= 2
+    elif total_nutrition['sugar'] > 25:
+        weight_loss_score -= 4
+    
+    if total_nutrition['fiber'] > 8:
+        weight_loss_score += 1
+    
+    scores['weight_loss'] = max(1, min(10, weight_loss_score))
+    
+    # Spiergroei/herstel (focus op hoge eiwitten, matige calorieën)
+    muscle_score = 5
+    if total_nutrition['protein'] > 20:
+        muscle_score += 3
+    elif total_nutrition['protein'] > 35:
+        muscle_score += 5
+    
+    if total_nutrition['calories'] > 300 and total_nutrition['calories'] < 600:
+        muscle_score += 2
+    
+    scores['muscle_building'] = max(1, min(10, muscle_score))
+    
+    # Meer energie (focus op complexe koolhydraten, B-vitamines)
+    energy_score = 6
+    if total_nutrition['carbohydrates'] > 40 and total_nutrition['sugar'] < 20:
+        energy_score += 2
+    
+    if total_nutrition['iron'] > 5:
+        energy_score += 1
+    
+    if total_nutrition['fiber'] > 5:
+        energy_score += 1
+    
+    scores['energy_boost'] = max(1, min(10, energy_score))
+    
+    # Bloeddruk verlagen (focus op laag natrium, hoog kalium)
+    blood_pressure_score = 8
+    if total_nutrition['sodium'] > 500:
+        blood_pressure_score -= 3
+    elif total_nutrition['sodium'] > 800:
+        blood_pressure_score -= 5
+    
+    if total_nutrition['potassium'] > 500:
+        blood_pressure_score += 1
+    
+    if total_nutrition['fiber'] > 8:
+        blood_pressure_score += 1
+    
+    scores['blood_pressure'] = max(1, min(10, blood_pressure_score))
+    
+    # Algemene gezondheid (uitgebalanceerd)
+    general_health_score = 6
+    if total_nutrition['fiber'] > 6:
+        general_health_score += 1
+    if total_nutrition['protein'] > 15:
+        general_health_score += 1
+    if total_nutrition['sugar'] < 15:
+        general_health_score += 1
+    if total_nutrition['sodium'] < 400:
+        general_health_score += 1
+    
+    scores['general_health'] = max(1, min(10, general_health_score))
+    
+    return scores
+
+def calculate_total_nutrition(all_ingredients):
+    """Bereken totale voedingswaarden van het recept"""
+    total = {
+        'calories': 0,
+        'protein': 0,
+        'carbohydrates': 0,
+        'fiber': 0,
+        'sugar': 0,
+        'fat': 0,
+        'saturated_fat': 0,
+        'sodium': 0,
+        'potassium': 0,
+        'calcium': 0,
+        'iron': 0,
+        'vitamin_c': 0
+    }
+    
+    ingredient_count = 0
+    
+    for ingredient in all_ingredients:
+        nutrition = ingredient.get('nutrition')
+        if nutrition:
+            # Schat portiegrootte op basis van hoeveelheid (als beschikbaar)
+            portion_factor = 1.0
+            if ingredient.get('amount'):
+                # Basis schatting: 100g per ingredient tenzij anders aangegeven
+                if ingredient.get('unit') == 'gram' or ingredient.get('unit') == 'g':
+                    portion_factor = ingredient['amount'] / 100
+                elif ingredient.get('unit') in ['eetlepel', 'el']:
+                    portion_factor = ingredient['amount'] * 15 / 100  # 15ml per eetlepel
+                elif ingredient.get('unit') in ['theelepel', 'tl']:
+                    portion_factor = ingredient['amount'] * 5 / 100   # 5ml per theelepel
+                else:
+                    portion_factor = 0.5  # Standaard kleinere portie voor stuks/andere eenheden
+            else:
+                portion_factor = 0.3  # Conservatieve schatting zonder hoeveelheid
+            
+            for key in total.keys():
+                if nutrition.get(key):
+                    total[key] += nutrition[key] * portion_factor
+            
+            ingredient_count += 1
+    
+    # Rond af tot hele getallen voor betere leesbaarheid
+    for key in total.keys():
+        total[key] = round(total[key], 1)
+    
+    return total
+
 def calculate_health_explanation(ingredients_with_scores):
     """Bereken uitleg voor gezondheidsscore"""
     explanations = []
@@ -728,19 +897,93 @@ def calculate_health_explanation(ingredients_with_scores):
     return explanations
 
 def parse_qty(line: str):
-    """Parse hoeveelheid uit ingrediënt regel"""
-    pattern = r"([\d/.]+)\s*(g|gram|ml|l|eetlepel|theelepel|kopje|stuks?)?\s*(.*)"
-    m = re.match(pattern, line.lower())
-    if not m:
-        return None, None, line.lower()
-
-    try:
-        amount = eval(m.group(1))
-    except:
-        amount = None
-    unit = m.group(2) or "stuks"
-    name = m.group(3).strip()
-    return amount, unit, name
+    """Parse hoeveelheid uit ingrediënt regel - verbeterde versie"""
+    # Uitgebreidere pattern matching voor verschillende formaten
+    patterns = [
+        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s*(gram|g|ml|milliliter|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes|snufje|snufjes|takje|takjes)\s+(.*)",
+        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",  # met eenheid tussen haakjes
+        r"(\d+(?:[.,]\d+)?)\s+(.*)",  # alleen getal en ingrediënt
+        r"(een\s+(?:half|halve|kwart|hele)?)\s+(.*)",  # 'een half', 'een hele' etc
+        r"(½|¼|¾|⅓|⅔|⅛)\s+(.*)",  # breuken
+    ]
+    
+    original_line = line
+    line_lower = line.lower().strip()
+    
+    for pattern in patterns:
+        m = re.match(pattern, line_lower)
+        if m:
+            amount_str = m.group(1)
+            
+            # Converteer speciale gevallen
+            if 'een half' in amount_str or 'halve' in amount_str:
+                amount = 0.5
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            elif 'een kwart' in amount_str:
+                amount = 0.25
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            elif '½' in amount_str:
+                amount = 0.5
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            elif '¼' in amount_str:
+                amount = 0.25
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            elif '¾' in amount_str:
+                amount = 0.75
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            else:
+                try:
+                    # Vervang komma's door punten voor decimalen
+                    amount_clean = amount_str.replace(',', '.')
+                    # Handel ranges af (bijv. "2-3")
+                    if '-' in amount_clean or '/' in amount_clean:
+                        nums = re.findall(r'\d+(?:\.\d+)?', amount_clean)
+                        if len(nums) >= 2:
+                            amount = (float(nums[0]) + float(nums[1])) / 2
+                        else:
+                            amount = float(nums[0]) if nums else 1
+                    else:
+                        amount = float(amount_clean)
+                except:
+                    amount = 1
+                
+                # Bepaal unit en name op basis van pattern
+                if len(m.groups()) >= 3:  # Pattern met unit
+                    unit = m.group(2)
+                    name = m.group(3).strip()
+                elif len(m.groups()) >= 2:
+                    if pattern == patterns[1]:  # Pattern met haakjes
+                        name = m.group(2).strip()
+                        unit = m.group(3) if len(m.groups()) >= 3 else 'stuks'
+                    else:
+                        unit = 'stuks'
+                        name = m.group(2).strip()
+                else:
+                    unit = 'stuks'
+                    name = line_lower.strip()
+            
+            # Normaliseer unit namen
+            unit_mapping = {
+                'g': 'gram', 'ml': 'milliliter', 'l': 'liter',
+                'el': 'eetlepel', 'eetlepels': 'eetlepel',
+                'tl': 'theelepel', 'theelepels': 'theelepel',
+                'st': 'stuks', 'stuks': 'stuks', 'stuk': 'stuks',
+                'teen': 'teentje', 'teentjes': 'teentje',
+                'kopjes': 'kopje', 'blikken': 'blik', 'pakken': 'pak',
+                'zakjes': 'zakje', 'snufjes': 'snufje', 'takjes': 'takje'
+            }
+            
+            unit = unit_mapping.get(unit, unit)
+            
+            return amount, unit, name
+    
+    # Als geen pattern matcht, return original
+    return None, None, line.lower().strip()
 
 def find_substitution(name: str):
     """Zoek vervanging voor ingrediënt"""
@@ -760,7 +1003,7 @@ def analyse(url: str):
 
         # Process ingredients
         all_ingredients = []
-                swaps = []
+        swaps = []
 
         for line in ingredients_list:
             if not line or len(line.strip()) < 2:
@@ -783,7 +1026,8 @@ def analyse(url: str):
                 "health_score": health_score,
                 "nutrition": nutrition_data,
                 "substitution": alt,
-                "has_healthier_alternative": bool(alt)
+                "has_healthier_alternative": bool(alt),
+                "health_fact": get_ingredient_health_facts(name)
             }
 
             all_ingredients.append(ingredient_data)
@@ -802,6 +1046,10 @@ def analyse(url: str):
 
         total_health_score = sum(ing['health_score'] for ing in all_ingredients) / len(all_ingredients)
         health_explanation = calculate_health_explanation(all_ingredients)
+        
+        # Bereken totale voedingswaarden en gezondheidsdoelen scores
+        total_nutrition = calculate_total_nutrition(all_ingredients)
+        health_goals_scores = calculate_health_goals_scores(total_nutrition)
 
         logger.info(f"Analysis complete: {len(all_ingredients)} ingredients, score: {total_health_score:.1f}")
 
@@ -810,7 +1058,9 @@ def analyse(url: str):
             "swaps": swaps,
             "health_score": round(total_health_score, 1),
             "health_explanation": health_explanation,
-            "recipe_title": recipe_title
+            "recipe_title": recipe_title,
+            "total_nutrition": total_nutrition,
+            "health_goals_scores": health_goals_scores
         }
 
     except Exception as e:

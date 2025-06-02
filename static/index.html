@@ -37,12 +37,22 @@
             <div id="results" class="results" style="display: none;">
                 <div class="results-header">
                     <h2 id="recipeTitle">Recept Analyse</h2>
-                    <div class="health-score">
-                        <div class="score-circle">
-                            <span id="healthScore">0</span>
-                            <small>/10</small>
-                        </div>
-                        <div class="score-label">Gezondheidsscore</div>
+                    <button id="printBtn" class="print-btn" onclick="printResults()">
+                        🖨️ Printen
+                    </button>
+                </div>
+
+                <div class="nutrition-summary">
+                    <h3>**Voedingswaarden per portie**</h3>
+                    <div class="nutrition-grid" id="nutritionGrid">
+                        <!-- Dynamisch gevuld -->
+                    </div>
+                </div>
+
+                <div class="health-goals">
+                    <h3>Geschiktheid voor gezondheidsdoelen</h3>
+                    <div class="goals-container" id="healthGoals">
+                        <!-- Dynamisch gevuld -->
                     </div>
                 </div>
 

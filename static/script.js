@@ -222,19 +222,11 @@ function displayResults(data) {
     // Update recipe titel
     document.getElementById('recipeTitle').textContent = data.recipe_title || 'Recept Analyse';
 
-    // Update health score met animatie
-    const healthScore = data.health_score || 0;
-    animateScore(healthScore);
+    // Display nutrition summary
+    displayNutritionSummary(data.total_nutrition || {});
 
-    // Update score circle color based on score
-    const scoreCircle = document.querySelector('.score-circle');
-    if (healthScore >= 7) {
-        scoreCircle.style.background = '#28a745';
-    } else if (healthScore >= 5) {
-        scoreCircle.style.background = '#ffc107';
-    } else {
-        scoreCircle.style.background = '#dc3545';
-    }
+    // Display health goals progress bars
+    displayHealthGoals(data.health_goals_scores || {});
 
     // Display health explanation
     displayHealthExplanation(data.health_explanation || []);
@@ -255,7 +247,144 @@ function displayResults(data) {
     resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     // Toon succesmelding voor screen readers
-    announceToScreenReader(`Recept analyse compleet. Gezondheidsscore: ${healthScore} van de 10.`);
+    const avgScore = Object.values(data.health_goals_scores || {}).reduce((a, b) => a + b, 0) / Object.keys(data.health_goals_scores || {}).length || 0;
+    announceToScreenReader(`Recept analyse compleet. Gemiddelde gezondheidsscore: ${avgScore.toFixed(1)} van de 10.`);
+}
+
+function displayNutritionSummary(nutrition) {
+    const container = document.getElementById('nutritionGrid');
+    container.innerHTML = '';
+
+    const nutritionLabels = {
+        'calories': '**Energie** (kcal)',
+        'protein': '**Eiwitten** (g)',
+        'carbohydrates': '**Koolhydraten** (g)', 
+        'fiber': '**Vezels** (g)',
+        'sugar': '**Suikers** (g)',
+        'fat': '**Vetten** (g)',
+        'saturated_fat': '**Verzadigde vetten** (g)',
+        'sodium': '**Natrium** (mg)',
+        'potassium': '**Kalium** (mg)',
+        'calcium': '**Calcium** (mg)',
+        'iron': '**IJzer** (mg)',
+        'vitamin_c': '**Vitamine C** (mg)'
+    };
+
+    Object.entries(nutritionLabels).forEach(([key, label]) => {
+        if (nutrition[key] && nutrition[key] > 0) {
+            const item = document.createElement('div');
+            item.className = 'nutrition-item';
+            
+            const labelSpan = document.createElement('span');
+            labelSpan.className = 'nutrition-label';
+            labelSpan.innerHTML = label;
+            
+            const valueSpan = document.createElement('span');
+            valueSpan.className = 'nutrition-value';
+            valueSpan.textContent = nutrition[key];
+            
+            item.appendChild(labelSpan);
+            item.appendChild(valueSpan);
+            container.appendChild(item);
+        }
+    });
+}
+
+function displayHealthGoals(healthGoals) {
+    const container = document.getElementById('healthGoals');
+    container.innerHTML = '';
+
+    const goalLabels = {
+        'weight_loss': 'Gewicht verliezen',
+        'muscle_building': 'Herstel/Spieren',
+        'energy_boost': 'Meer energie',
+        'blood_pressure': 'Bloeddruk verlagen',
+        'general_health': 'Algemene gezondheid'
+    };
+
+    Object.entries(goalLabels).forEach(([key, label]) => {
+        if (healthGoals[key]) {
+            const goalItem = document.createElement('div');
+            goalItem.className = 'goal-item';
+            
+            const goalHeader = document.createElement('div');
+            goalHeader.className = 'goal-header';
+            
+            const goalTitle = document.createElement('span');
+            goalTitle.className = 'goal-title';
+            goalTitle.textContent = label;
+            
+            const goalScore = document.createElement('span');
+            goalScore.className = 'goal-score';
+            goalScore.textContent = `${healthGoals[key]}/10`;
+            
+            goalHeader.appendChild(goalTitle);
+            goalHeader.appendChild(goalScore);
+            
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            
+            const progressFill = document.createElement('div');
+            progressFill.className = 'progress-fill';
+            progressFill.style.width = `${(healthGoals[key] / 10) * 100}%`;
+            
+            // Kleur op basis van score
+            if (healthGoals[key] >= 7) {
+                progressFill.style.background = '#28a745';
+            } else if (healthGoals[key] >= 5) {
+                progressFill.style.background = '#ffc107';
+            } else {
+                progressFill.style.background = '#dc3545';
+            }
+            
+            progressBar.appendChild(progressFill);
+            
+            goalItem.appendChild(goalHeader);
+            goalItem.appendChild(progressBar);
+            container.appendChild(goalItem);
+        }
+    });
+}
+
+function printResults() {
+    // Maak een printbare versie
+    const printWindow = window.open('', '_blank');
+    const resultsContent = document.getElementById('results').innerHTML;
+    
+    const printHTML = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Recept Analyse - ${document.getElementById('recipeTitle').textContent}</title>
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 20px; }
+                .print-btn { display: none; }
+                .nutrition-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin: 20px 0; }
+                .nutrition-item { display: flex; justify-content: space-between; padding: 8px; background: #f8f9fa; border-radius: 5px; }
+                .nutrition-label { font-weight: bold; }
+                .goal-item { margin: 15px 0; }
+                .goal-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; }
+                .progress-bar { height: 20px; background: #e9ecef; border-radius: 10px; overflow: hidden; }
+                .progress-fill { height: 100%; border-radius: 10px; }
+                .ingredient-item { padding: 10px; margin: 10px 0; border-left: 4px solid #ccc; background: #f8f9fa; }
+                .ingredient-name { font-weight: bold; font-size: 1.1em; }
+                .ingredient-details { color: #666; margin: 5px 0; }
+                .ingredient-nutrition { font-size: 0.9em; color: #555; margin: 5px 0; }
+                .health-fact { font-style: italic; color: #28a745; margin: 5px 0; }
+                h1, h2, h3 { color: #333; }
+                @media print { body { margin: 0; } }
+            </style>
+        </head>
+        <body>
+            ${resultsContent}
+        </body>
+        </html>
+    `;
+    
+    printWindow.document.write(printHTML);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
 }
 
 function animateScore(targetScore) {
@@ -319,23 +448,52 @@ function displayAllIngredients(ingredients) {
         name.className = 'ingredient-name';
         name.textContent = ingredient.name;
 
+        // Verbeterde details met hoeveelheid info
         const details = document.createElement('div');
         details.className = 'ingredient-details';
-
-        let detailText = ingredient.original_line;
+        
+        let detailText = '';
         if (ingredient.amount && ingredient.unit) {
-            detailText = `${ingredient.amount} ${ingredient.unit} - ${ingredient.original_line}`;
+            detailText = `**${ingredient.amount} ${ingredient.unit}** - ${ingredient.name}`;
+        } else {
+            detailText = ingredient.original_line;
         }
-        details.textContent = detailText;
+        details.innerHTML = detailText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
         info.appendChild(name);
         info.appendChild(details);
+
+        // Voedingswaarden per ingrediënt
+        if (ingredient.nutrition) {
+            const nutrition = ingredient.nutrition;
+            const nutritionDiv = document.createElement('div');
+            nutritionDiv.className = 'ingredient-nutrition';
+            
+            const nutritionItems = [];
+            if (nutrition.calories > 0) nutritionItems.push(`Energie: ${nutrition.calories} kcal/100g`);
+            if (nutrition.protein > 0) nutritionItems.push(`Eiwitten: ${nutrition.protein}g`);
+            if (nutrition.fiber > 0) nutritionItems.push(`Vezels: ${nutrition.fiber}g`);
+            if (nutrition.sugar > 0) nutritionItems.push(`Suikers: ${nutrition.sugar}g`);
+            
+            if (nutritionItems.length > 0) {
+                nutritionDiv.innerHTML = `📊 ${nutritionItems.join(' • ')}`;
+                info.appendChild(nutritionDiv);
+            }
+        }
+
+        // Gezondheidsweetje
+        if (ingredient.health_fact) {
+            const healthFact = document.createElement('div');
+            healthFact.className = 'health-fact';
+            healthFact.innerHTML = `💡 ${ingredient.health_fact}`;
+            info.appendChild(healthFact);
+        }
 
         // Toon substitutie als beschikbaar
         if (ingredient.substitution) {
             const substitution = document.createElement('div');
             substitution.className = 'substitution';
-            substitution.textContent = `💡 Vervang door: ${ingredient.substitution}`;
+            substitution.textContent = `🔄 Vervang door: ${ingredient.substitution}`;
             info.appendChild(substitution);
         }
 
