@@ -186,6 +186,18 @@ def clean_ingredient_text(text):
     if not text:
         return None
 
+    # Fix encoding issues - remove non-printable characters
+    text = ''.join(char for char in text if char.isprintable() or char.isspace())
+    
+    # Remove garbled text patterns
+    if any(ord(char) > 1000 for char in text):
+        return None
+        
+    # Check for gibberish (too many non-alphabetic chars)
+    alpha_ratio = sum(c.isalpha() or c.isspace() for c in text) / len(text) if text else 0
+    if alpha_ratio < 0.6:
+        return None
+
     # Verwijder leading nummers en hoeveelheden
     text = re.sub(r'^\d+\s*[.,]?\s*', '', text)
     text = re.sub(r'^\d+\s*(gram|g|ml|eetlepel|el|theelepel|tl|stuks?|teen|liter|l|kopje|blik)\s*', '', text)
@@ -412,10 +424,91 @@ def smart_ingredient_scraping(url: str):
 
     return ingredients, title
 
+def get_nutrition_data(ingredient_name):
+    """Haal voedingsdata op van OpenFoodFacts API"""
+    try:
+        # Search for product
+        search_url = "https://world.openfoodfacts.org/cgi/search.pl"
+        params = {
+            'search_terms': ingredient_name,
+            'search_simple': 1,
+            'action': 'process',
+            'json': 1,
+            'page_size': 1
+        }
+        
+        response = requests.get(search_url, params=params, timeout=10)
+        data = response.json()
+        
+        if data.get('products') and len(data['products']) > 0:
+            product = data['products'][0]
+            nutriments = product.get('nutriments', {})
+            
+            return {
+                'calories': nutriments.get('energy-kcal_100g', 0),
+                'fat': nutriments.get('fat_100g', 0),
+                'saturated_fat': nutriments.get('saturated-fat_100g', 0),
+                'sugar': nutriments.get('sugars_100g', 0),
+                'fiber': nutriments.get('fiber_100g', 0),
+                'protein': nutriments.get('proteins_100g', 0),
+                'salt': nutriments.get('salt_100g', 0),
+                'nova_group': product.get('nova_group', 1)
+            }
+    except Exception as e:
+        logger.warning(f"Failed to get nutrition data for {ingredient_name}: {e}")
+    
+    return None
+
+def calculate_health_score_from_nutrition(nutrition_data):
+    """Bereken gezondheidsscore op basis van voedingswaarden"""
+    if not nutrition_data:
+        return 5
+    
+    score = 10  # Start with perfect score
+    
+    # Penalty for high calories (more than 300 kcal/100g)
+    if nutrition_data['calories'] > 300:
+        score -= 1
+    elif nutrition_data['calories'] > 500:
+        score -= 2
+    
+    # Penalty for high saturated fat (more than 5g/100g)
+    if nutrition_data['saturated_fat'] > 5:
+        score -= 1
+    elif nutrition_data['saturated_fat'] > 10:
+        score -= 2
+    
+    # Penalty for high sugar (more than 10g/100g)
+    if nutrition_data['sugar'] > 10:
+        score -= 1
+    elif nutrition_data['sugar'] > 20:
+        score -= 2
+    
+    # Penalty for high salt (more than 1g/100g)
+    if nutrition_data['salt'] > 1:
+        score -= 1
+    elif nutrition_data['salt'] > 2:
+        score -= 2
+    
+    # Bonus for high fiber (more than 3g/100g)
+    if nutrition_data['fiber'] > 3:
+        score += 1
+    
+    # Bonus for high protein (more than 10g/100g)
+    if nutrition_data['protein'] > 10:
+        score += 1
+    
+    # NOVA group penalty (higher = more processed)
+    nova_penalty = {1: 0, 2: -1, 3: -2, 4: -3}
+    score += nova_penalty.get(nutrition_data['nova_group'], -1)
+    
+    return max(1, min(10, score))
+
 def get_health_score(ingredient_name):
     """Geef gezondheidsscore voor een ingrediënt"""
     ingredient_lower = ingredient_name.lower()
 
+    # First try local HEALTH_SCORES for fast lookup
     for key, score in HEALTH_SCORES.items():
         if key in ingredient_lower:
             return score
@@ -424,6 +517,13 @@ def get_health_score(ingredient_name):
                              scorer=fuzz.WRatio, score_cutoff=70)
     if match:
         return HEALTH_SCORES[match[0]]
+
+    # If not found locally, try OpenFoodFacts API
+    nutrition_data = get_nutrition_data(ingredient_name)
+    if nutrition_data:
+        api_score = calculate_health_score_from_nutrition(nutrition_data)
+        logger.info(f"Using API nutrition score for {ingredient_name}: {api_score}")
+        return api_score
 
     return 5
 
@@ -442,6 +542,17 @@ def calculate_health_explanation(ingredients_with_scores):
 
     if low_scoring:
         explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join([ing['name'] for ing in low_scoring])}")
+
+    # Add nutrition insights
+    total_ingredients = len(ingredients_with_scores)
+    processed_count = sum(1 for ing in ingredients_with_scores if ing['health_score'] <= 4)
+    natural_count = sum(1 for ing in ingredients_with_scores if ing['health_score'] >= 7)
+    
+    if processed_count > total_ingredients * 0.5:
+        explanations.append("🔍 Dit recept bevat veel bewerkte ingrediënten. Overweeg verse alternatieven.")
+    
+    if natural_count > total_ingredients * 0.6:
+        explanations.append("🌱 Excellent! Dit recept is rijk aan natuurlijke, onbewerkte ingrediënten.")
 
     return explanations
 
@@ -490,6 +601,7 @@ def analyse(url: str):
                 continue
 
             health_score = get_health_score(name)
+            nutrition_data = get_nutrition_data(name)
             alt = find_substitution(name)
 
             ingredient_data = {
@@ -498,6 +610,7 @@ def analyse(url: str):
                 "amount": amount,
                 "unit": unit,
                 "health_score": health_score,
+                "nutrition": nutrition_data,
                 "substitution": alt,
                 "has_healthier_alternative": bool(alt)
             }
