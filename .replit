@@ -19,7 +19,3 @@ mode = "sequential"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "uvicorn api:app --host 0.0.0.0 --port 3000"
-
-[[ports]]
-localPort = 3000
-externalPort = 80
