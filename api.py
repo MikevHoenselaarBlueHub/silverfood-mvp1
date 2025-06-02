@@ -196,11 +196,26 @@ async def analyse_endpoint(request: Request, url: str):
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
+    # Check Selenium availability
+    selenium_available = False
+    try:
+        import shutil
+        chrome_binary = shutil.which('chromium') or shutil.which('chrome')
+        chromedriver_binary = shutil.which('chromedriver')
+        selenium_available = bool(chrome_binary and chromedriver_binary)
+    except:
+        pass
+    
     return {
         "status": "healthy", 
         "message": "Silverfood API is actief",
         "version": "3.1.0",
-        "features": ["adaptive_detection", "pattern_learning", "universal_recipe_support"]
+        "features": ["adaptive_detection", "pattern_learning", "universal_recipe_support"],
+        "selenium_available": selenium_available,
+        "components": {
+            "chrome": bool(shutil.which('chromium') or shutil.which('chrome')) if 'shutil' in locals() else False,
+            "chromedriver": bool(shutil.which('chromedriver')) if 'shutil' in locals() else False
+        }
     }
 
 @app.get("/supported-sites")

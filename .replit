@@ -3,7 +3,7 @@ run = "uvicorn api:app --host 0.0.0.0 --port 3000"
 
 [nix]
 channel = "stable-24_05"
-packages = ["geckodriver", "rapidfuzz-cpp", "taskflow"]
+packages = ["geckodriver", "rapidfuzz-cpp", "taskflow", "chromium", "chromedriver"]
 
 [deployment]
 run = ["sh", "-c", "uvicorn api:app --host 0.0.0.0 --port 3000"]

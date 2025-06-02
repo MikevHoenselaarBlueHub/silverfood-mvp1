@@ -67,14 +67,17 @@ def get_random_user_agent():
     return random.choice(user_agents)
 
 def setup_selenium_driver():
-    """Setup Selenium Chrome driver with options"""
+    """Setup Selenium Chrome driver with options optimized for Replit"""
     try:
         chrome_options = Options()
-        chrome_options.add_argument('--headless')
+        
+        # Replit specific Chrome setup
+        chrome_options.add_argument('--headless=new')  # Use new headless mode
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.binary_location = '/usr/bin/chromium-browser'
         chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--disable-web-security')
+        chrome_options.add_argument('--disable-features=VizDisplayCompositor')
         chrome_options.add_argument('--window-size=1920,1080')
         chrome_options.add_argument('--disable-extensions')
         chrome_options.add_argument('--disable-background-timer-throttling')
@@ -83,42 +86,54 @@ def setup_selenium_driver():
         chrome_options.add_argument('--disable-features=TranslateUI')
         chrome_options.add_argument('--disable-ipc-flooding-protection')
         chrome_options.add_argument('--force-device-scale-factor=1')
+        chrome_options.add_argument('--single-process')  # Better for containers
+        chrome_options.add_argument('--disable-background-networking')
+        chrome_options.add_argument('--disable-default-apps')
+        chrome_options.add_argument('--disable-sync')
+        chrome_options.add_argument('--no-first-run')
         chrome_options.add_argument(f'--user-agent={get_random_user_agent()}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         
-        # Try different ways to find ChromeDriver
-        driver_paths = [
-            '/usr/bin/chromedriver',
-            '/usr/local/bin/chromedriver',
-            'chromedriver'
-        ]
+        # Set Chrome binary location for Replit/Nix
+        import shutil
+        chrome_binary = shutil.which('chromium') or shutil.which('chrome') or shutil.which('google-chrome')
+        if chrome_binary:
+            chrome_options.binary_location = chrome_binary
+            logger.info(f"Chrome binary found at: {chrome_binary}")
+        else:
+            logger.warning("Chrome binary not found in PATH")
+        
+        # Try to find ChromeDriver
+        chromedriver_path = shutil.which('chromedriver')
         
         driver = None
-        for path in driver_paths:
-            try:
-                if path == 'chromedriver':
-                    driver = webdriver.Chrome(options=chrome_options)
-                else:
-                    from selenium.webdriver.chrome.service import Service
-                    service = Service(path)
-                    driver = webdriver.Chrome(service=service, options=chrome_options)
-                logger.info(f"ChromeDriver found at: {path}")
-                break
-            except Exception as e:
-                logger.debug(f"Failed to load ChromeDriver from {path}: {e}")
-                continue
-        
-        if driver:
+        try:
+            if chromedriver_path:
+                from selenium.webdriver.chrome.service import Service
+                service = Service(chromedriver_path)
+                driver = webdriver.Chrome(service=service, options=chrome_options)
+                logger.info(f"ChromeDriver found at: {chromedriver_path}")
+            else:
+                # Fallback: try without explicit service
+                driver = webdriver.Chrome(options=chrome_options)
+                logger.info("Using default ChromeDriver")
+            
+            # Anti-detection measures
             driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+                "userAgent": get_random_user_agent()
+            })
+            
             return driver
-        else:
-            logger.warning("No ChromeDriver found in standard locations")
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Chrome driver: {e}")
             return None
             
     except Exception as e:
-        logger.warning(f"Failed to setup Selenium driver: {e}")
+        logger.error(f"Failed to setup Selenium driver: {e}")
         return None
 
 def selenium_scrape_ingredients(url: str):
@@ -130,19 +145,35 @@ def selenium_scrape_ingredients(url: str):
             return [], ""
         
         logger.info(f"Using Selenium for {url}")
+        
+        # Set page load timeout
+        driver.set_page_load_timeout(30)
+        driver.implicitly_wait(10)
+        
         driver.get(url)
         
-        # Wait for page to load
-        WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.TAG_NAME, "body"))
-        )
+        # Wait for page to load with better error handling
+        try:
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except TimeoutException:
+            logger.warning("Page load timeout, trying to continue anyway")
         
-        # Additional wait for dynamic content
-        time.sleep(3)
+        # Progressive wait for dynamic content
+        for wait_time in [2, 3, 5]:
+            time.sleep(wait_time)
+            if driver.page_source and len(driver.page_source) > 1000:
+                break
         
-        # Get page source and title
-        html = driver.page_source
-        title = driver.title
+        # Get page source and title with error handling
+        try:
+            html = driver.page_source
+            title = driver.title or "Recept"
+        except Exception as e:
+            logger.warning(f"Error getting page content: {e}")
+            html = ""
+            title = "Recept"
         
         soup = BeautifulSoup(html, 'html.parser')
         
@@ -213,7 +244,15 @@ def selenium_scrape_ingredients(url: str):
         return [], ""
     finally:
         if driver:
-            driver.quit()
+            try:
+                driver.quit()
+            except Exception as cleanup_error:
+                logger.warning(f"Error during driver cleanup: {cleanup_error}")
+                try:
+                    # Force kill if normal quit fails
+                    driver.close()
+                except:
+                    pass
 
 def clean_ingredient_text(text):
     """Maak ingrediënt tekst schoon"""
@@ -480,20 +519,28 @@ def smart_ingredient_scraping(url: str):
             logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
             continue
 
-    # If requests failed, try Selenium
+    # If requests failed, try Selenium with retry logic
     if len(ingredients) < 3:
         logger.info("Requests failed, trying Selenium...")
-        try:
-            selenium_ingredients, selenium_title = selenium_scrape_ingredients(url)
-            if selenium_ingredients and len(selenium_ingredients) >= 3:
-                ingredients = selenium_ingredients
-                if selenium_title:
-                    title = selenium_title
-                logger.info(f"Selenium successful: {len(ingredients)} ingredients found")
-            else:
-                logger.warning("Selenium also failed to find sufficient ingredients")
-        except Exception as e:
-            logger.error(f"Selenium scraping failed: {e}")
+        max_selenium_retries = 2
+        
+        for retry in range(max_selenium_retries):
+            try:
+                selenium_ingredients, selenium_title = selenium_scrape_ingredients(url)
+                if selenium_ingredients and len(selenium_ingredients) >= 3:
+                    ingredients = selenium_ingredients
+                    if selenium_title:
+                        title = selenium_title
+                    logger.info(f"Selenium successful: {len(ingredients)} ingredients found")
+                    break
+                else:
+                    logger.warning(f"Selenium attempt {retry + 1} failed to find sufficient ingredients")
+                    if retry < max_selenium_retries - 1:
+                        time.sleep(2)  # Wait before retry
+            except Exception as e:
+                logger.error(f"Selenium attempt {retry + 1} failed: {e}")
+                if retry < max_selenium_retries - 1:
+                    time.sleep(3)  # Wait before retry
 
     # Final fallback: try to extract from meta data or structured data
     if len(ingredients) < 3:
