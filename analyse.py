@@ -4,6 +4,12 @@ from urllib.parse import urlparse
 from bs4 import BeautifulSoup
 from rapidfuzz import process, fuzz
 import logging
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException, WebDriverException
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -59,6 +65,121 @@ def get_random_user_agent():
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
     ]
     return random.choice(user_agents)
+
+def setup_selenium_driver():
+    """Setup Selenium Chrome driver with options"""
+    try:
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--no-sandbox')
+        chrome_options.add_argument('--disable-dev-shm-usage')
+        chrome_options.add_argument('--disable-gpu')
+        chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument(f'--user-agent={get_random_user_agent()}')
+        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
+        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+        chrome_options.add_experimental_option('useAutomationExtension', False)
+        
+        driver = webdriver.Chrome(options=chrome_options)
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        return driver
+    except Exception as e:
+        logger.warning(f"Failed to setup Selenium driver: {e}")
+        return None
+
+def selenium_scrape_ingredients(url: str):
+    """Scrape ingredients using Selenium for dynamic content"""
+    driver = None
+    try:
+        driver = setup_selenium_driver()
+        if not driver:
+            return [], ""
+        
+        logger.info(f"Using Selenium for {url}")
+        driver.get(url)
+        
+        # Wait for page to load
+        WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.TAG_NAME, "body"))
+        )
+        
+        # Additional wait for dynamic content
+        time.sleep(3)
+        
+        # Get page source and title
+        html = driver.page_source
+        title = driver.title
+        
+        soup = BeautifulSoup(html, 'html.parser')
+        
+        domain = get_domain(url)
+        ingredients = []
+        
+        # Domain-specific selectors
+        domain_selectors = {
+            'ah.nl': [
+                '.recipe-ingredients-ingredient-list_name__YX7Rl',
+                '[data-testhook="ingredients"] td:last-child p',
+                '[data-testhook="ingredients"] td',
+                '.recipe-ingredients li'
+            ],
+            'jumbo.com': [
+                '.ingredient-line',
+                '.ingredients-list li',
+                '.recipe-ingredient',
+                '.jum-ingredient'
+            ],
+            'leukerecepten.nl': [
+                '.recipe-ingredients li',
+                '.ingredients li',
+                '.ingredient-list li',
+                '.recipe-content li'
+            ]
+        }
+        
+        # Generic selectors
+        generic_selectors = [
+            '[class*="ingredient"]',
+            '[class*="recipe"] li',
+            'ul li',
+            'ol li',
+            'table td',
+            'table tr td:last-child',
+            '.ingredient',
+            '.ingredients li',
+            '[data-ingredient]',
+            '[itemtype*="ingredient"]',
+            '[class*="item"] span',
+            '.recipe-list li',
+            '.step li'
+        ]
+        
+        selectors_to_try = domain_selectors.get(domain, []) + generic_selectors
+        
+        for selector in selectors_to_try:
+            try:
+                elements = soup.select(selector)
+                for elem in elements:
+                    text = elem.get_text(strip=True)
+                    if text and is_likely_ingredient(text):
+                        clean_text = clean_ingredient_text(text)
+                        if clean_text and clean_text not in ingredients:
+                            ingredients.append(clean_text)
+                
+                if len(ingredients) >= 5:
+                    logger.info(f"Selenium success with selector: {selector} - Found {len(ingredients)} ingredients")
+                    break
+            except Exception:
+                continue
+        
+        return ingredients, title
+        
+    except Exception as e:
+        logger.error(f"Selenium scraping failed: {e}")
+        return [], ""
+    finally:
+        if driver:
+            driver.quit()
 
 def clean_ingredient_text(text):
     """Maak ingrediënt tekst schoon"""
@@ -128,8 +249,9 @@ def is_likely_ingredient(text):
     return (has_quantity or has_common_ingredient) and digit_ratio < 0.3 and not has_html
 
 def smart_ingredient_scraping(url: str):
-    """Slimme ingrediënten scraping zonder Playwright"""
+    """Slimme ingrediënten scraping met Selenium fallback"""
 
+    # First try requests/BeautifulSoup (faster)
     session = requests.Session()
 
     # Rotate through different headers to avoid detection
@@ -161,10 +283,10 @@ def smart_ingredient_scraping(url: str):
     ingredients = []
     title = "Recept"
 
-    # Try multiple approaches
+    # Try multiple approaches with requests first
     for attempt, headers in enumerate(headers_options):
         try:
-            logger.info(f"Attempt {attempt + 1} for {url}")
+            logger.info(f"Requests attempt {attempt + 1} for {url}")
 
             session.headers.update(headers)
             time.sleep(random.uniform(1, 3))  # Random delay
@@ -235,7 +357,7 @@ def smart_ingredient_scraping(url: str):
                                 ingredients.append(clean_text)
 
                     if len(ingredients) >= 5:
-                        logger.info(f"Success with selector: {selector} - Found {len(ingredients)} ingredients")
+                        logger.info(f"Requests success with selector: {selector} - Found {len(ingredients)} ingredients")
                         break
 
                 except Exception:
@@ -243,12 +365,12 @@ def smart_ingredient_scraping(url: str):
 
             # If we found enough ingredients, break
             if len(ingredients) >= 3:
-                logger.info(f"Successful scraping: {len(ingredients)} ingredients found")
+                logger.info(f"Requests successful scraping: {len(ingredients)} ingredients found")
                 break
 
             # Fallback: analyze all text content for ingredient patterns
             if len(ingredients) < 3:
-                logger.info("Trying fallback text analysis")
+                logger.info("Trying requests fallback text analysis")
                 all_text = soup.get_text()
                 lines = all_text.split('\n')
 
@@ -269,6 +391,21 @@ def smart_ingredient_scraping(url: str):
         except Exception as e:
             logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
             continue
+
+    # If requests failed, try Selenium
+    if len(ingredients) < 3:
+        logger.info("Requests failed, trying Selenium...")
+        try:
+            selenium_ingredients, selenium_title = selenium_scrape_ingredients(url)
+            if selenium_ingredients and len(selenium_ingredients) >= 3:
+                ingredients = selenium_ingredients
+                if selenium_title:
+                    title = selenium_title
+                logger.info(f"Selenium successful: {len(ingredients)} ingredients found")
+            else:
+                logger.warning("Selenium also failed to find sufficient ingredients")
+        except Exception as e:
+            logger.error(f"Selenium scraping failed: {e}")
 
     if len(ingredients) < 3:
         raise Exception(f"Kon geen voldoende ingrediënten vinden op {url}. Gevonden: {ingredients}")
