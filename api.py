@@ -194,7 +194,7 @@ async def health_check():
     return {
         "status": "healthy", 
         "message": "Silverfood API is actief",
-        "version": "3.0.0",
+        "version": "3.1.0",
         "features": ["adaptive_detection", "pattern_learning", "universal_recipe_support"]
     }
 
