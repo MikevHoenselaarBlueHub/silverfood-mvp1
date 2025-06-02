@@ -75,14 +75,45 @@ def setup_selenium_driver():
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--window-size=1920,1080')
+        chrome_options.add_argument('--disable-extensions')
+        chrome_options.add_argument('--disable-background-timer-throttling')
+        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
+        chrome_options.add_argument('--disable-renderer-backgrounding')
+        chrome_options.add_argument('--disable-features=TranslateUI')
+        chrome_options.add_argument('--disable-ipc-flooding-protection')
+        chrome_options.add_argument('--force-device-scale-factor=1')
         chrome_options.add_argument(f'--user-agent={get_random_user_agent()}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
         
-        driver = webdriver.Chrome(options=chrome_options)
-        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-        return driver
+        # Try different ways to find ChromeDriver
+        driver_paths = [
+            '/usr/bin/chromedriver',
+            '/usr/local/bin/chromedriver',
+            'chromedriver'
+        ]
+        
+        driver = None
+        for path in driver_paths:
+            try:
+                if path == 'chromedriver':
+                    driver = webdriver.Chrome(options=chrome_options)
+                else:
+                    from selenium.webdriver.chrome.service import Service
+                    service = Service(path)
+                    driver = webdriver.Chrome(service=service, options=chrome_options)
+                break
+            except:
+                continue
+        
+        if driver:
+            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+            return driver
+        else:
+            logger.warning("No ChromeDriver found in standard locations")
+            return None
+            
     except Exception as e:
         logger.warning(f"Failed to setup Selenium driver: {e}")
         return None
@@ -186,17 +217,44 @@ def clean_ingredient_text(text):
     if not text:
         return None
 
-    # Fix encoding issues - remove non-printable characters
+    # Fix encoding issues - handle different encodings
+    if isinstance(text, bytes):
+        try:
+            text = text.decode('utf-8', errors='ignore')
+        except:
+            try:
+                text = text.decode('latin-1', errors='ignore')
+            except:
+                return None
+    
+    # Remove non-printable characters but keep basic punctuation
     text = ''.join(char for char in text if char.isprintable() or char.isspace())
     
-    # Remove garbled text patterns
+    # Remove garbled text patterns - stricter check
     if any(ord(char) > 1000 for char in text):
+        return None
+    
+    # Check for control characters or weird encoding artifacts
+    if any(ord(char) < 32 and char not in '\t\n\r' for char in text):
         return None
         
     # Check for gibberish (too many non-alphabetic chars)
-    alpha_ratio = sum(c.isalpha() or c.isspace() for c in text) / len(text) if text else 0
-    if alpha_ratio < 0.6:
-        return None
+    if len(text) > 0:
+        alpha_ratio = sum(c.isalpha() or c.isspace() or c in ',-().' for c in text) / len(text)
+        if alpha_ratio < 0.5:
+            return None
+    
+    # Filter out obvious garbage text patterns
+    garbage_patterns = [
+        r'[����]+',  # Common encoding artifacts
+        r'[\x00-\x1f\x7f-\x9f]+',  # Control characters
+        r'^[^a-zA-Z]*$',  # No letters at all
+        r'[^\w\s\-,().]+',  # Too many special chars
+    ]
+    
+    for pattern in garbage_patterns:
+        if re.search(pattern, text):
+            return None
 
     # Verwijder leading nummers en hoeveelheden
     text = re.sub(r'^\d+\s*[.,]?\s*', '', text)
@@ -304,7 +362,22 @@ def smart_ingredient_scraping(url: str):
             time.sleep(random.uniform(1, 3))  # Random delay
 
             response = session.get(url, timeout=30, allow_redirects=True)
+            
+            # Check for blocked/forbidden responses
+            if response.status_code == 403:
+                logger.warning(f"403 Forbidden - website blocking access")
+                continue
+            elif response.status_code == 429:
+                logger.warning(f"429 Rate limited - waiting longer")
+                time.sleep(10)
+                continue
+                
             response.raise_for_status()
+            
+            # Additional check for empty or invalid content
+            if len(response.content) < 100:
+                logger.warning(f"Response too short: {len(response.content)} bytes")
+                continue
 
             soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -419,10 +492,54 @@ def smart_ingredient_scraping(url: str):
         except Exception as e:
             logger.error(f"Selenium scraping failed: {e}")
 
+    # Final fallback: try to extract from meta data or structured data
     if len(ingredients) < 3:
-        raise Exception(f"Kon geen voldoende ingrediënten vinden op {url}. Gevonden: {ingredients}")
+        logger.info("Trying final fallback: structured data extraction")
+        try:
+            # Last attempt with most basic text analysis
+            fallback_ingredients = extract_ingredients_from_text(url)
+            if fallback_ingredients and len(fallback_ingredients) >= 3:
+                ingredients = fallback_ingredients
+                logger.info(f"Fallback successful: {len(ingredients)} ingredients found")
+            else:
+                # If still nothing, provide helpful error with specific site info
+                domain = get_domain(url)
+                if domain in ['ah.nl', 'jumbo.com']:
+                    raise Exception(f"Deze website ({domain}) blokkeert automatische toegang. Probeer de ingrediënten handmatig te kopiëren.")
+                else:
+                    raise Exception(f"Kon geen ingrediënten detecteren op {domain}. Dit kan zijn omdat de website een onbekende structuur gebruikt of toegang blokkeert.")
+        except Exception as fallback_error:
+            logger.error(f"All extraction methods failed: {fallback_error}")
+            raise Exception(f"Kon geen ingrediënten vinden op {url}. Website gebruikt mogelijk anti-bot bescherming of onbekende structuur.")
 
     return ingredients, title
+
+def extract_ingredients_from_text(url):
+    """Last resort: basic text pattern matching for ingredients"""
+    try:
+        import requests
+        response = requests.get(url, timeout=10, headers={'User-Agent': get_random_user_agent()})
+        text = response.text.lower()
+        
+        # Look for common ingredient patterns in text
+        ingredient_patterns = [
+            r'(\d+\s*(?:gram|g|ml|eetlepel|el|theelepel|tl|kopje|blik|pak|zakje)\s+)([a-zA-Zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\s]{3,30})',
+            r'(\d+\s*)([a-zA-Zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\s]{3,30})\s*(?:gram|g|ml|eetlepel|el|theelepel|tl|kopje|blik|pak|zakje)',
+        ]
+        
+        found_ingredients = []
+        for pattern in ingredient_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
+                ingredient = match[1].strip() if len(match) > 1 else match[0].strip()
+                if ingredient and len(ingredient) > 2 and is_likely_ingredient(ingredient):
+                    clean_ingredient = clean_ingredient_text(ingredient)
+                    if clean_ingredient and clean_ingredient not in found_ingredients:
+                        found_ingredients.append(clean_ingredient)
+        
+        return found_ingredients[:20]  # Limit to 20 ingredients
+    except:
+        return []
 
 def get_nutrition_data(ingredient_name):
     """Haal voedingsdata op van OpenFoodFacts API"""
