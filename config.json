@@ -1,7 +1,6 @@
-
 {
   "health_tips": {
-    "interval_seconds": 2,
+    "interval_seconds": 4,
     "show_tips": true,
     "fade_duration_ms": 500
   },
