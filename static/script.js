@@ -7,6 +7,12 @@ const resultsDiv = document.getElementById('results');
 const errorDiv = document.getElementById('error');
 const errorMessage = document.getElementById('errorMessage');
 
+// Health tips functionaliteit
+let healthTips = [];
+let currentTipIndex = 0;
+let tipInterval = null;
+let config = { health_tips_interval_seconds: 2, show_health_tips: true };
+
 // Voorbeelden van ondersteunde URLs
 const exampleUrls = [
     'https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata',
@@ -17,7 +23,7 @@ const exampleUrls = [
 
 // Vul automatisch de URL in als voorbeeld
 recipeUrlInput.value = exampleUrls[0];
-recipeUrlInput.placeholder = 'Voer een recept URL in van elke website...';
+recipeUrlInput.placeholder = 'Voer een recept-URL in van elke website...';
 
 // Event listeners
 analyzeBtn.addEventListener('click', analyzeRecipe);
@@ -44,7 +50,7 @@ function validateUrl(url) {
         recipeUrlInput.title = 'URL moet beginnen met http:// of https://';
     } else if (url) {
         recipeUrlInput.style.borderColor = '#28a745';
-        recipeUrlInput.title = 'Elke recept website wordt ondersteund dankzij AI detectie!';
+        recipeUrlInput.title = 'Elke receptenwebsite wordt ondersteund dankzij AI-detectie!';
     } else {
         recipeUrlInput.style.borderColor = '';
         recipeUrlInput.title = '';
@@ -96,7 +102,7 @@ async function analyzeRecipe() {
         let errorTitle = 'Fout bij analyseren';
 
         if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-            userMessage = 'Geen internetverbinding. Controleer je verbinding en probeer opnieuw.';
+            userMessage = 'Geen internetverbinding. Controleer uw verbinding en probeer opnieuw.';
             errorTitle = 'Verbindingsfout';
         } else if (error.message.includes('niet ondersteund')) {
             userMessage = 'Deze website wordt niet ondersteund. Probeer een recept van AH Allerhande of Jumbo.';
@@ -105,10 +111,10 @@ async function analyzeRecipe() {
             userMessage = 'Te veel verzoeken. Wacht een minuut en probeer opnieuw.';
             errorTitle = 'Te druk';
         } else if (error.message.includes('geen ingrediënten') || error.message.includes('Geen ingrediënten')) {
-            userMessage = 'Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen recept-pagina\n\nProbeer een andere recept-URL.';
+            userMessage = 'Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen receptpagina\n\nProbeer een andere recept-URL.';
             errorTitle = 'Geen ingrediënten gevonden';
         } else if (error.message.includes('tijdelijk niet beschikbaar')) {
-            userMessage = 'De analyse service is tijdelijk niet beschikbaar. Dit kan komen door server onderhoud. Probeer het over een paar minuten opnieuw.';
+            userMessage = 'De analyseservice is tijdelijk niet beschikbaar. Dit kan komen door serveronderhoud. Probeer het over een paar minuten opnieuw.';
             errorTitle = 'Service tijdelijk niet beschikbaar';
         } else if (error.message.includes('geblokkeerd') || error.message.includes('403')) {
             userMessage = 'Deze website blokkeert automatische toegang. Probeer een andere recept-URL van een ondersteunde website.';
@@ -146,12 +152,38 @@ function showLoadingMessage() {
     `;
     loadingDiv.innerHTML = '⏳ Even geduld, we analyseren uw recept...';
 
+    // Voeg gezondheidstip toe
+    const healthTipDiv = document.createElement('div');
+    healthTipDiv.id = 'healthTip';
+    healthTipDiv.style.cssText = `
+        background: rgba(40, 167, 69, 0.1);
+        border: 2px solid #28a745;
+        border-radius: 15px;
+        padding: 20px;
+        margin: 15px 0;
+        text-align: center;
+        font-size: 1.1rem;
+        color: #28a745;
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: opacity ${config.tips_fade_duration_ms || 500}ms ease-in-out;
+        font-weight: 500;
+    `;
+    
+    loadingDiv.appendChild(healthTipDiv);
+
     // Voeg toe na input sectie
     const inputSection = document.querySelector('.input-section');
     inputSection.insertAdjacentElement('afterend', loadingDiv);
+    
+    // Start gezondheidstips
+    startHealthTips();
 }
 
 function hideLoadingMessage() {
+    stopHealthTips();
     const loadingDiv = document.getElementById('loadingMessage');
     if (loadingDiv) {
         loadingDiv.remove();
@@ -422,7 +454,84 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-// Toon shortcuts info
-window.addEventListener('load', () => {
+// Laad configuratie en gezondheidstips
+async function loadConfiguration() {
+    try {
+        const configResponse = await fetch('/static/config.json');
+        if (configResponse.ok) {
+            config = await configResponse.json();
+        }
+    } catch (error) {
+        console.log('Configuratie laden mislukt, gebruik standaardwaarden');
+    }
+}
+
+async function loadHealthTips() {
+    try {
+        const tipsResponse = await fetch('/static/health_tips.json');
+        if (tipsResponse.ok) {
+            const tipsData = await tipsResponse.json();
+            healthTips = tipsData.tips;
+        }
+    } catch (error) {
+        console.log('Gezondheidstips laden mislukt');
+        healthTips = [
+            "Drink voldoende water voor uw gezondheid.",
+            "Eet dagelijks groenten en fruit.",
+            "Bewegen is goed voor uw lichaam en geest."
+        ];
+    }
+}
+
+function showHealthTip() {
+    if (!config.show_health_tips || healthTips.length === 0) return;
+    
+    const tipContainer = document.getElementById('healthTip');
+    if (!tipContainer) return;
+    
+    // Fade out
+    tipContainer.style.opacity = '0';
+    
+    setTimeout(() => {
+        // Update tekst
+        tipContainer.textContent = healthTips[currentTipIndex];
+        currentTipIndex = (currentTipIndex + 1) % healthTips.length;
+        
+        // Fade in
+        tipContainer.style.opacity = '1';
+    }, config.tips_fade_duration_ms || 500);
+}
+
+function startHealthTips() {
+    if (!config.show_health_tips || healthTips.length === 0) return;
+    
+    // Stop bestaande interval
+    if (tipInterval) {
+        clearInterval(tipInterval);
+    }
+    
+    // Toon eerste tip direct
+    showHealthTip();
+    
+    // Start interval
+    tipInterval = setInterval(showHealthTip, config.health_tips_interval_seconds * 1000);
+}
+
+function stopHealthTips() {
+    if (tipInterval) {
+        clearInterval(tipInterval);
+        tipInterval = null;
+    }
+    
+    const tipContainer = document.getElementById('healthTip');
+    if (tipContainer) {
+        tipContainer.style.display = 'none';
+    }
+}
+
+// Toon shortcuts info en laad data
+window.addEventListener('load', async () => {
     console.log('Sneltoetsen: Alt+A = Analyseren, Escape = Fout sluiten');
+    await loadConfiguration();
+    await loadHealthTips();
 });

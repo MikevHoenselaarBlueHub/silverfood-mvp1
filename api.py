@@ -247,8 +247,8 @@ async def supported_sites():
             }
         ],
         "how_it_works": [
-            "1. Upload een recept URL van elke website",
-            "2. De AI detecteert automatisch de ingrediënten structuur", 
+            "1. Upload een recept-URL van elke website",
+            "2. De AI detecteert automatisch de ingrediëntenstructuur", 
             "3. Patronen worden opgeslagen voor snellere toekomstige analyse",
             "4. Elke nieuwe site wordt geleerd en toegevoegd"
         ]
