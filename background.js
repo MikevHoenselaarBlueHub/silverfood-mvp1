@@ -47,6 +47,39 @@ class BackgroundService {
             }
             
             // Quick health check for badge
+            const isRecipe = await this.quickRecipeCheck(tab.url);
+            if (isRecipe) {
+                chrome.action.setBadgeText({text: '!', tabId: tab.id});
+                chrome.action.setBadgeBackgroundColor({color: '#4CAF50'});
+            } else {
+                chrome.action.setBadgeText({text: '', tabId: tab.id});
+            }
+        } catch (error) {
+            console.error('Badge update failed:', error);
+        }
+    }
+    
+    isRecipePage(url) {
+        if (!url) return false;
+        
+        const recipeIndicators = [
+            'recept', 'recipe', 'cooking', 'kook', 'gerecht',
+            'ingredient', 'bereiding', 'instructions'
+        ];
+        
+        return recipeIndicators.some(indicator => 
+            url.toLowerCase().includes(indicator)
+        );
+    }
+    
+    async quickRecipeCheck(url) {
+        // Simple heuristic check for recipe pages
+        return this.isRecipePage(url);
+    }
+}
+
+// Initialize background service
+new BackgroundService();
             const response = await fetch(`https://your-replit-app.replit.app/extension/quick-check?url=${encodeURIComponent(tab.url)}`);
             const data = await response.json();
             

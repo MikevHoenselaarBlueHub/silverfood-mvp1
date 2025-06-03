@@ -80,6 +80,28 @@ class DebugHelper:
             "error": None
         }
         
+        import logging
+import json
+import time
+import requests
+from typing import Dict, Any, List
+from bs4 import BeautifulSoup
+
+class DebugHelper:
+    """Helper class for debugging scraping issues"""
+    
+    def __init__(self):
+        self.logger = logging.getLogger(__name__)
+    
+    def test_url_accessibility(self, url: str) -> Dict[str, Any]:
+        """Test if URL is accessible and analyze response"""
+        result = {
+            "url": url,
+            "timestamp": time.strftime('%Y-%m-%d %H:%M:%S'),
+            "accessible": False,
+            "error": None
+        }
+        
         try:
             start_time = time.time()
             response = requests.get(url, timeout=10, headers={
@@ -99,8 +121,6 @@ class DebugHelper:
     
     def analyze_page_structure(self, html: str, url: str) -> Dict[str, Any]:
         """Analyze page structure for debugging"""
-        from bs4 import BeautifulSoup
-        
         soup = BeautifulSoup(html, 'html.parser')
         
         analysis = {
@@ -141,6 +161,20 @@ class DebugHelper:
         report = f"""
 # Debug Report for {url}
 Generated: {time.strftime('%Y-%m-%d %H:%M:%S')}
+
+## Analysis Results
+Ingredients found: {len(analysis_result.get('all_ingredients', []))}
+Health score: {analysis_result.get('health_score', 'N/A')}
+
+## Scraped Ingredients
+"""
+        for i, ingredient in enumerate(analysis_result.get('all_ingredients', [])[:10]):
+            report += f"{i+1}. {ingredient.get('name', 'Unknown')} (score: {ingredient.get('health_score', 'N/A')})\n"
+        
+        return report
+
+# Global debug instance
+debug = DebugHelper()
 
 ## Analysis Result
 - Success: {analysis_result.get('success', False)}

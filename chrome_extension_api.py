@@ -2,9 +2,53 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import json
+import logging
 from typing import Dict, Any
 from analyse import analyse
 from debug_helper import debug
+
+logger = logging.getLogger(__name__)
+
+def setup_chrome_extension_api(app: FastAPI):
+    """Setup Chrome extension specific API endpoints"""
+    
+    @app.get("/chrome/analyze")
+    async def chrome_analyze(url: str):
+        """Chrome extension analysis endpoint"""
+        try:
+            result = analyse(url)
+            
+            # Return simplified data for chrome extension
+            return {
+                "success": True,
+                "data": {
+                    "health_score": result.get("health_score", 0),
+                    "total_ingredients": len(result.get("all_ingredients", [])),
+                    "recipe_title": result.get("recipe_title", "Recept"),
+                    "top_ingredients": [
+                        {
+                            "name": ing["name"],
+                            "health_score": ing["health_score"]
+                        }
+                        for ing in result.get("all_ingredients", [])[:5]
+                    ]
+                }
+            }
+        except Exception as e:
+            logger.error(f"Chrome extension analysis failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    @app.get("/chrome/health-check")
+    async def chrome_health_check():
+        """Health check for chrome extension"""
+        return {
+            "status": "healthy",
+            "version": "3.1.0",
+            "chrome_extension_ready": True
+        }
 
 class ChromeExtensionAPI:
     """API endpoints specifically for Chrome extension"""

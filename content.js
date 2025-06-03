@@ -1,169 +1,93 @@
-
-// Content script for Chrome extension
-class ContentScript {
+// Content script for Silverfood Chrome Extension
+class SilverfoodContentScript {
     constructor() {
+        this.apiUrl = 'https://your-replit-app.replit.app';
         this.init();
     }
-    
+
     init() {
-        // Only run on recipe pages
-        if (this.isRecipePage()) {
-            this.injectAnalyzeButton();
-            this.setupMessageListener();
+        // Listen for messages from popup
+        chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+            if (message.action === 'analyzeCurrentPage') {
+                this.analyzeCurrentPage().then(sendResponse);
+                return true; // Indicates async response
+            }
+        });
+
+        // Auto-detect recipe pages
+        this.detectRecipePage();
+    }
+
+    async analyzeCurrentPage() {
+        try {
+            const url = window.location.href;
+            const response = await fetch(`${this.apiUrl}/chrome/analyze?url=${encodeURIComponent(url)}`);
+            const result = await response.json();
+
+            return result;
+        } catch (error) {
+            return {
+                success: false,
+                error: 'Failed to analyze page: ' + error.message
+            };
         }
     }
-    
-    isRecipePage() {
-        const recipeIndicators = [
-            'recept', 'recipe', 'ingredient'
+
+    detectRecipePage() {
+        // Simple recipe page detection
+        const indicators = [
+            'recipe', 'recept', 'ingredient', 'cooking',
+            'bereiding', 'kook', 'gerecht'
         ];
-        
+
         const pageText = document.body.textContent.toLowerCase();
-        const url = window.location.href.toLowerCase();
-        
-        return recipeIndicators.some(indicator => 
-            pageText.includes(indicator) || url.includes(indicator)
+        const hasRecipeIndicators = indicators.some(indicator => 
+            pageText.includes(indicator)
         );
+
+        if (hasRecipeIndicators) {
+            this.showRecipeDetectedNotification();
+        }
     }
-    
-    injectAnalyzeButton() {
-        // Create floating analyze button
-        const button = document.createElement('div');
-        button.id = 'silverfood-analyze-btn';
-        button.innerHTML = `
+
+    showRecipeDetectedNotification() {
+        // Create subtle notification that recipe was detected
+        const notification = document.createElement('div');
+        notification.id = 'silverfood-notification';
+        notification.innerHTML = `
             <div style="
                 position: fixed;
                 top: 20px;
                 right: 20px;
-                z-index: 10000;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                color: white;
-                padding: 12px 20px;
-                border-radius: 25px;
-                cursor: pointer;
-                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 14px;
-                font-weight: 500;
-                transition: all 0.3s ease;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            " onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
-                🍽️ Analyze Recipe
-            </div>
-        `;
-        
-        button.addEventListener('click', () => {
-            this.quickAnalyze();
-        });
-        
-        document.body.appendChild(button);
-    }
-    
-    async quickAnalyze() {
-        const button = document.getElementById('silverfood-analyze-btn');
-        const originalContent = button.innerHTML;
-        
-        button.innerHTML = `
-            <div style="
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 10000;
                 background: #4CAF50;
                 color: white;
-                padding: 12px 20px;
-                border-radius: 25px;
-                font-family: 'Segoe UI', sans-serif;
+                padding: 10px 15px;
+                border-radius: 5px;
+                z-index: 10000;
+                font-family: Arial, sans-serif;
                 font-size: 14px;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 8px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+                cursor: pointer;
             ">
-                ⏳ Analyzing...
+                🍽️ Recept gedetecteerd - Klik hier voor gezondheidsanalyse
             </div>
         `;
-        
-        try {
-            const response = await fetch(`https://your-replit-app.replit.app/extension/quick-check?url=${encodeURIComponent(window.location.href)}`);
-            const data = await response.json();
-            
-            this.showQuickResult(data);
-        } catch (error) {
-            this.showError('Analysis failed');
-        }
-        
-        // Restore button after 3 seconds
+
+        document.body.appendChild(notification);
+
+        // Auto-hide after 5 seconds
         setTimeout(() => {
-            button.innerHTML = originalContent;
-        }, 3000);
-    }
-    
-    showQuickResult(data) {
-        const button = document.getElementById('silverfood-analyze-btn');
-        const score = data.health_score || 0;
-        const color = score >= 8 ? '#4CAF50' : score >= 6 ? '#FFC107' : score >= 4 ? '#FF9800' : '#F44336';
-        
-        button.innerHTML = `
-            <div style="
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 10000;
-                background: ${color};
-                color: white;
-                padding: 12px 20px;
-                border-radius: 25px;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 14px;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            ">
-                🎯 Health Score: ${score}/10
-            </div>
-        `;
-    }
-    
-    showError(message) {
-        const button = document.getElementById('silverfood-analyze-btn');
-        button.innerHTML = `
-            <div style="
-                position: fixed;
-                top: 20px;
-                right: 20px;
-                z-index: 10000;
-                background: #F44336;
-                color: white;
-                padding: 12px 20px;
-                border-radius: 25px;
-                font-family: 'Segoe UI', sans-serif;
-                font-size: 14px;
-                font-weight: 500;
-                display: flex;
-                align-items: center;
-                gap: 8px;
-            ">
-                ❌ ${message}
-            </div>
-        `;
-    }
-    
-    setupMessageListener() {
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            if (request.action === 'analyze') {
-                this.quickAnalyze();
+            if (notification.parentNode) {
+                notification.parentNode.removeChild(notification);
             }
+        }, 5000);
+
+        // Click to open extension popup
+        notification.addEventListener('click', () => {
+            chrome.runtime.sendMessage({action: 'openPopup'});
         });
     }
 }
 
 // Initialize content script
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => new ContentScript());
-} else {
-    new ContentScript();
-}
+new SilverfoodContentScript();
