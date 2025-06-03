@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title="Silverfood-API", 
     description="Adaptieve receptenanalyse API voor alle receptsites",
-    version="3.1.0"
+    version="3.2.0"
 )
 
 # Beveiligingsmiddleware
@@ -232,7 +232,7 @@ async def health_check():
     return {
         "status": "healthy", 
         "message": "Silverfood API is actief",
-        "version": "3.1.0",
+        "version": "3.2.0",
         "features": ["adaptive_detection", "pattern_learning", "universal_recipe_support"],
         "selenium_available": selenium_available,
         "components": {
