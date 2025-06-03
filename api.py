@@ -7,6 +7,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import time
 import logging
 import json
+import os
 import requests
 from analyse import analyse
 from urllib.parse import urlparse
@@ -313,8 +314,12 @@ async def explain_healthy_ingredients(ingredients: str):
 async def get_ai_explanation(ingredients: str, explanation_type: str):
     """Generate AI explanation for ingredients"""
     try:
-        # OpenAI API key
-        api_key = "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"
+        # OpenAI API key from environment variables
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.error("OpenAI API key not found in environment variables")
+            fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
+            return {"explanation": fallback_msg}
         
         headers = {
             "Authorization": f"Bearer {api_key}",
