@@ -3,7 +3,7 @@ run = "uvicorn undefined:app --host 0.0.0.0 --port 3000"
 
 [nix]
 channel = "stable-24_05"
-packages = ["geckodriver", "rapidfuzz-cpp", "taskflow", "chromium", "chromedriver"]
+packages = ["chromedriver", "chromium", "geckodriver", "rapidfuzz-cpp", "taskflow"]
 
 [deployment]
 run = ["sh", "-c", "uvicorn undefined:app --host 0.0.0.0 --port 3000"]
@@ -18,4 +18,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "uvicorn api:app --host 0.0.0.0 --port 3000"
+args = "python -m uvicorn api:app --host 0.0.0.0 --port 3000"

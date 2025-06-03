@@ -6,3 +6,9 @@ beautifulsoup4==4.12.2
 rapidfuzz==3.5.2
 selenium
 selenium
+beautifulsoup4
+fastapi
+rapidfuzz
+requests
+selenium
+uvicorn

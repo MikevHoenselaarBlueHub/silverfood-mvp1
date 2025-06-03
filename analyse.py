@@ -32,6 +32,52 @@ try:
 except FileNotFoundError:
     WEBSITE_PATTERNS = {}
 
+# Health scores database
+HEALTH_SCORES = {
+    'ui': 7, 'uien': 7, 'tomaat': 8, 'tomaten': 8, 'paprika': 8,
+    'courgette': 8, 'wortel': 9, 'aardappel': 6, 'rijst': 5,
+    'pasta': 4, 'knoflook': 8, 'peterselie': 9, 'basilicum': 9,
+    'olie': 3, 'boter': 2, 'kaas': 4, 'vlees': 5, 'kip': 6,
+    'vis': 8, 'melk': 5, 'room': 3, 'ei': 6, 'eieren': 6,
+    'bloem': 3, 'suiker': 1, 'azijn': 6, 'couscous': 5,
+    'feta': 4, 'ricotta': 5, 'burrata': 4, 'asperges': 9,
+    'nectarine': 8, 'doperwten': 8
+}
+
+def calculate_health_score_from_nutrition(nutrition_data):
+    """Calculate health score from nutrition data"""
+    score = 5  # Default
+    
+    # Adjust based on nutrition facts
+    if 'fat_100g' in nutrition_data:
+        fat = nutrition_data['fat_100g']
+        if fat > 20:
+            score -= 2
+        elif fat < 5:
+            score += 1
+            
+    if 'sugars_100g' in nutrition_data:
+        sugar = nutrition_data['sugars_100g']
+        if sugar > 15:
+            score -= 2
+        elif sugar < 5:
+            score += 1
+            
+    if 'fiber_100g' in nutrition_data:
+        fiber = nutrition_data['fiber_100g']
+        if fiber > 5:
+            score += 2
+            
+    if 'salt_100g' in nutrition_data:
+        salt = nutrition_data['salt_100g']
+        if salt > 1.5:
+            score -= 1
+            
+    nova_penalty = {4: -2, 3: -1, 2: 0, 1: 1}
+    score += nova_penalty.get(nutrition_data.get('nova_group'), 0)
+
+    return max(1, min(10, score))
+
 def save_website_patterns():
     """Sla website patterns op naar bestand"""
     try:
@@ -68,7 +114,7 @@ def get_random_user_agent():
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
     ]
-    return random.choice(user_agents)
+    return random.choice(user_agents))
 
 def setup_selenium_driver():
     """Setup Selenium Chrome driver with options optimized for Replit"""
@@ -151,6 +197,119 @@ def selenium_scrape_ingredients(url: str):
         logger.info(f"Using Selenium for {url}")
 
         # Set page load timeout
+
+
+def save_website_patterns():
+    """Save learned patterns to file"""
+    try:
+        with open(WEBSITE_PATTERNS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(WEBSITE_PATTERNS, f, ensure_ascii=False, indent=2)
+    except Exception as e:
+        logger.error(f"Failed to save patterns: {e}")
+
+def get_driver():
+    """Create a Chrome WebDriver instance"""
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--window-size=1920,1080')
+    options.add_argument(f'--user-agent={get_random_user_agent()}')
+    
+    try:
+        driver = webdriver.Chrome(options=options)
+        driver.set_page_load_timeout(30)
+        return driver
+    except Exception as e:
+        logger.error(f"Failed to create driver: {e}")
+        return None
+
+def analyse(url):
+    """Main analysis function"""
+    try:
+        # Parse domain
+        domain = urlparse(url).netloc.replace('www.', '')
+        
+        # Try to get page with requests first
+        headers = {'User-Agent': get_random_user_agent()}
+        response = requests.get(url, headers=headers, timeout=15)
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Extract ingredients using various methods
+        ingredients = extract_ingredients_from_soup(soup, domain)
+        
+        if not ingredients:
+            # Try with Selenium if requests failed
+            driver = get_driver()
+            if driver:
+                try:
+                    driver.get(url)
+                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+                    soup = BeautifulSoup(driver.page_source, 'html.parser')
+                    ingredients = extract_ingredients_from_soup(soup, domain)
+                finally:
+                    driver.quit()
+        
+        if not ingredients:
+            raise Exception("Geen ingrediënten gevonden op deze pagina")
+            
+        # Calculate health scores
+        ingredient_data = []
+        for ingredient in ingredients:
+            health_score = get_health_score(ingredient)
+            ingredient_data.append({
+                'name': ingredient,
+                'health_score': health_score
+            })
+        
+        return {
+            'ingredients': ingredient_data,
+            'total_ingredients': len(ingredient_data),
+            'average_health_score': sum(i['health_score'] for i in ingredient_data) / len(ingredient_data) if ingredient_data else 0
+        }
+        
+    except Exception as e:
+        logger.error(f"Analysis failed for {url}: {e}")
+        raise
+
+def extract_ingredients_from_soup(soup, domain):
+    """Extract ingredients from BeautifulSoup object"""
+    ingredients = []
+    
+    # Try known patterns first
+    if domain in WEBSITE_PATTERNS:
+        pattern = WEBSITE_PATTERNS[domain]
+        for selector in pattern.get('ingredient_selectors', []):
+            elements = soup.select(selector)
+            for element in elements:
+                text = element.get_text(strip=True)
+                if is_likely_ingredient(text):
+                    ingredients.append(text)
+    
+    # If no known patterns or no results, try generic selectors
+    if not ingredients:
+        generic_selectors = [
+            '.ingredient', '.ingredients li', '.recipe-ingredients li',
+            '[class*="ingredient"]', '[data-ingredient]', '.recipe-ingredient',
+            'ul.ingredients li', 'ol.ingredients li', '.ingredient-list li'
+        ]
+        
+        for selector in generic_selectors:
+            elements = soup.select(selector)
+            for element in elements:
+                text = element.get_text(strip=True)
+                if is_likely_ingredient(text):
+                    ingredients.append(text)
+            if ingredients:
+                # Save successful pattern
+                if domain not in WEBSITE_PATTERNS:
+                    WEBSITE_PATTERNS[domain] = {'ingredient_selectors': [selector], 'auto_detected': True, 'success_count': 1}
+                    save_website_patterns()
+                break
+    
+    return ingredients[:20]  # Limit to 20 ingredients
+
         driver.set_page_load_timeout(30)
         driver.implicitly_wait(10)
 
@@ -352,6 +511,11 @@ def is_likely_ingredient(text):
         'olie', 'boter', 'zout', 'peper', 'kaas', 'vlees', 'kip', 'vis',
         'melk', 'room', 'ei', 'eieren', 'bloem', 'suiker', 'azijn', 'couscous',
         'feta', 'ricotta', 'burrata', 'asperges', 'nectarine', 'doperwten'
+    ]
+
+    has_common_ingredient = any(ingredient in text_lower for ingredient in common_ingredients)
+    
+    return has_quantity or has_common_ingredient
     ]
 
     has_common_ingredient = any(ingredient in text_lower for ingredient in common_ingredients)
@@ -613,6 +777,10 @@ def get_nutrition_data(ingredient_name):
 
         if data.get('products') and len(data['products']) > 0:
             product = data['products'][0]
+            return product.get('nutriments', {})
+    except:
+        pass
+    return Noneta['products'][0]
             nutriments = product.get('nutriments', {})
 
             return {
@@ -736,6 +904,9 @@ def get_health_score(ingredient_name):
         api_score = calculate_health_score_from_nutrition(nutrition_data)
         logger.info(f"Using API nutrition score for {ingredient_name}: {api_score}")
         return api_score
+    
+    # Default score if nothing found
+    return 5core
 
     return CONFIG.get("health_scoring", {}).get("default_unknown_score", 5)
 
