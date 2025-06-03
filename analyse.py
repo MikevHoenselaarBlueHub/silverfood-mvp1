@@ -271,11 +271,12 @@ def extract_ingredients_from_text(text: str) -> List[str]:
 
     # Patterns that suggest ingredient lines
     ingredient_patterns = [
-        r'^\d+\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak)',  # Amount + unit
-        r'^\d+\s*[^\d\s]',  # Number followed by text
+        r'^\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak)',  # Amount + unit (with decimals)
+        r'^\d+(?:\.\d+)?\s*[^\d\s]',  # Number followed by text (with decimals)
         r'^-\s*\d*\s*[^\d]',  # Dash lists
         r'^\*\s*\d*\s*[^\d]',  # Bullet lists
         r'^\d+\.\s*\d*\s*[^\d]',  # Numbered lists
+        r'^\d+(?:\.\d+)?\s+\w+',  # Simple pattern: number + space + word
     ]
 
     for line in lines:
@@ -287,7 +288,7 @@ def extract_ingredients_from_text(text: str) -> List[str]:
         is_ingredient = any(re.match(pattern, line, re.IGNORECASE) for pattern in ingredient_patterns)
 
         # Also include lines that contain common ingredient words
-        ingredient_words = ['gram', 'kg', 'ml', 'liter', 'eetlepel', 'theelepel', 'stuks', 'blik']
+        ingredient_words = ['gram', 'g', 'kg', 'ml', 'l', 'liter', 'eetlepel', 'el', 'theelepel', 'tl', 'stuks', 'blik', 'pak', 'snufje', 'snufjes', 'takje', 'takjes']
         contains_ingredient_word = any(word in line.lower() for word in ingredient_words)
 
         if is_ingredient or contains_ingredient_word:

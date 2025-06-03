@@ -246,7 +246,7 @@ async function analyzeRecipe() {
         showError(userMessage, errorTitle);
 
         // Log voor debugging
-        console.log("Failed URL:", url);
+        console.log("Failed input:", inputData);
         console.log("Error details:", error);
     } finally {
         // Reset UI
