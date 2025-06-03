@@ -673,3 +673,63 @@ button:focus, input:focus {
         border: 2px solid #000;
     }
 }
+
+/* Draggable goals styles */
+.goal-item {
+    transition: all 0.3s ease;
+    margin-bottom: 15px;
+}
+
+.goal-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+}
+
+.goal-item.dragging {
+    opacity: 0.5;
+    transform: rotate(3deg);
+}
+
+.drag-handle {
+    font-size: 16px;
+    line-height: 1;
+    margin-right: 10px;
+    color: #666;
+    cursor: move;
+    user-select: none;
+}
+
+.drag-handle:hover {
+    color: #333;
+}
+
+/* AI explanation styles */
+.ai-explanation-btn {
+    transition: all 0.3s ease;
+    border: none;
+    outline: none;
+}
+
+.ai-explanation-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
+}
+
+.ai-explanation-btn:active {
+    transform: scale(0.98);
+}
+
+.ai-explanation {
+    animation: slideIn 0.5s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

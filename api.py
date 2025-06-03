@@ -7,6 +7,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import time
 import logging
 import json
+import requests
 from analyse import analyse
 from urllib.parse import urlparse
 from chrome_extension_api import setup_chrome_extension_api
@@ -298,6 +299,60 @@ async def learned_patterns():
         }
     except:
         return {"learned_sites": {}, "total_sites": 0}
+
+@app.get("/explain-unhealthy")
+async def explain_unhealthy_ingredients(ingredients: str):
+    """Generate AI explanation for unhealthy ingredients"""
+    try:
+        # OpenAI API key
+        api_key = "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"
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        prompt = f"""
+        Je bent een voedingsexpert. Leg uit waarom deze ingrediënten minder gezond zijn en geef praktische tips:
+        
+        Ingrediënten: {ingredients}
+        
+        Geef een korte, begrijpelijke uitleg in het Nederlands (max 200 woorden) over:
+        1. Waarom deze ingrediënten minder gezond zijn
+        2. Wat je in plaats daarvan zou kunnen gebruiken
+        3. Hoe je deze ingrediënten in balans kunt houden
+        
+        Wees positief en niet te streng - geef praktische tips.
+        """
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "Je bent een vriendelijke voedingsexpert die mensen helpt gezonder te eten."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 300,
+            "temperature": 0.7
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            explanation = result['choices'][0]['message']['content'].strip()
+            return {"explanation": explanation}
+        else:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            return {"explanation": "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."}
+            
+    except Exception as e:
+        logger.error(f"Failed to get AI explanation: {e}")
+        return {"explanation": "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."}
 
 # Error handlers
 @app.exception_handler(404)

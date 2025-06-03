@@ -295,29 +295,51 @@ function displayHealthGoals(healthGoals) {
     container.innerHTML = '';
 
     const goalLabels = {
+        'general_health': 'Algemene gezondheid',
         'weight_loss': 'Gewicht verliezen',
         'muscle_building': 'Herstel/Spieren',
         'energy_boost': 'Meer energie',
-        'blood_pressure': 'Bloeddruk verlagen',
-        'general_health': 'Algemene gezondheid'
+        'blood_pressure': 'Bloeddruk verlagen'
     };
 
-    Object.entries(goalLabels).forEach(([key, label]) => {
+    // Load saved order from localStorage
+    let goalOrder = JSON.parse(localStorage.getItem('healthGoalsOrder')) || Object.keys(goalLabels);
+    
+    // Make sure all goals are included
+    Object.keys(goalLabels).forEach(key => {
+        if (!goalOrder.includes(key)) {
+            goalOrder.push(key);
+        }
+    });
+
+    // Create sortable container
+    container.style.position = 'relative';
+
+    goalOrder.forEach((key, index) => {
         if (healthGoals[key]) {
             const goalItem = document.createElement('div');
             goalItem.className = 'goal-item';
+            goalItem.draggable = true;
+            goalItem.dataset.goalKey = key;
+            goalItem.style.cursor = 'move';
             
             const goalHeader = document.createElement('div');
             goalHeader.className = 'goal-header';
             
+            const dragHandle = document.createElement('span');
+            dragHandle.className = 'drag-handle';
+            dragHandle.innerHTML = '⋮⋮';
+            dragHandle.style.cssText = 'margin-right: 10px; color: #666; cursor: move; user-select: none;';
+            
             const goalTitle = document.createElement('span');
             goalTitle.className = 'goal-title';
-            goalTitle.textContent = label;
+            goalTitle.textContent = goalLabels[key];
             
             const goalScore = document.createElement('span');
             goalScore.className = 'goal-score';
             goalScore.textContent = `${healthGoals[key]}/10`;
             
+            goalHeader.appendChild(dragHandle);
             goalHeader.appendChild(goalTitle);
             goalHeader.appendChild(goalScore);
             
@@ -341,9 +363,69 @@ function displayHealthGoals(healthGoals) {
             
             goalItem.appendChild(goalHeader);
             goalItem.appendChild(progressBar);
+            
+            // Add drag event listeners
+            goalItem.addEventListener('dragstart', handleDragStart);
+            goalItem.addEventListener('dragover', handleDragOver);
+            goalItem.addEventListener('drop', handleDrop);
+            goalItem.addEventListener('dragend', handleDragEnd);
+            
             container.appendChild(goalItem);
         }
     });
+}
+
+let draggedElement = null;
+
+function handleDragStart(e) {
+    draggedElement = this;
+    this.style.opacity = '0.5';
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+    
+    if (draggedElement !== this) {
+        const container = this.parentNode;
+        const draggedIndex = Array.from(container.children).indexOf(draggedElement);
+        const targetIndex = Array.from(container.children).indexOf(this);
+        
+        if (draggedIndex < targetIndex) {
+            container.insertBefore(draggedElement, this.nextSibling);
+        } else {
+            container.insertBefore(draggedElement, this);
+        }
+        
+        // Save new order
+        saveGoalsOrder();
+    }
+    
+    return false;
+}
+
+function handleDragEnd(e) {
+    this.style.opacity = '1';
+    draggedElement = null;
+}
+
+function saveGoalsOrder() {
+    const container = document.getElementById('healthGoals');
+    const goalItems = Array.from(container.children);
+    const newOrder = goalItems.map(item => item.dataset.goalKey);
+    
+    localStorage.setItem('healthGoalsOrder', JSON.stringify(newOrder));
+    console.log('Goals order saved:', newOrder);
 }
 
 function printResults() {
@@ -416,7 +498,88 @@ function displayHealthExplanation(explanations) {
         item.className = 'explanation-item';
         item.textContent = explanation;
         container.appendChild(item);
+        
+        // Add AI explanation for unhealthy ingredients
+        if (explanation.includes('❌ Minder gezonde ingrediënten')) {
+            const unhealthyIngredients = explanation.replace('❌ Minder gezonde ingrediënten (score 1-3): ', '');
+            
+            const aiButton = document.createElement('button');
+            aiButton.textContent = '🤖 Krijg AI uitleg waarom dit minder gezond is';
+            aiButton.className = 'ai-explanation-btn';
+            aiButton.style.cssText = `
+                margin-top: 10px;
+                padding: 8px 16px;
+                background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                transition: all 0.3s ease;
+            `;
+            
+            aiButton.addEventListener('click', () => loadAIExplanation(unhealthyIngredients, aiButton));
+            aiButton.addEventListener('mouseover', () => {
+                aiButton.style.transform = 'scale(1.05)';
+                aiButton.style.boxShadow = '0 4px 15px rgba(255, 107, 107, 0.4)';
+            });
+            aiButton.addEventListener('mouseout', () => {
+                aiButton.style.transform = 'scale(1)';
+                aiButton.style.boxShadow = 'none';
+            });
+            
+            item.appendChild(aiButton);
+        }
     });
+}
+
+async function loadAIExplanation(ingredients, button) {
+    const originalText = button.textContent;
+    button.textContent = '⏳ AI denkt na...';
+    button.disabled = true;
+    
+    try {
+        const response = await fetch(`/explain-unhealthy?ingredients=${encodeURIComponent(ingredients)}`);
+        const data = await response.json();
+        
+        // Create explanation div
+        const explanationDiv = document.createElement('div');
+        explanationDiv.className = 'ai-explanation';
+        explanationDiv.style.cssText = `
+            margin-top: 15px;
+            padding: 15px;
+            background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%);
+            border-left: 4px solid #ff6b6b;
+            border-radius: 8px;
+            line-height: 1.6;
+            font-size: 0.95rem;
+            color: #2d3748;
+            box-shadow: 0 2px 10px rgba(255, 107, 107, 0.1);
+        `;
+        
+        const title = document.createElement('div');
+        title.innerHTML = '<strong>🤖 AI Voedingsexpert:</strong>';
+        title.style.marginBottom = '10px';
+        
+        const content = document.createElement('div');
+        content.textContent = data.explanation;
+        
+        explanationDiv.appendChild(title);
+        explanationDiv.appendChild(content);
+        
+        // Replace button with explanation
+        button.parentNode.replaceChild(explanationDiv, button);
+        
+    } catch (error) {
+        console.error('AI explanation failed:', error);
+        button.textContent = '❌ AI uitleg mislukt';
+        button.style.background = '#dc3545';
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.disabled = false;
+            button.style.background = 'linear-gradient(45deg, #ff6b6b, #ee5a24)';
+        }, 3000);
+    }
 }
 
 function displayAllIngredients(ingredients) {
@@ -481,8 +644,8 @@ function displayAllIngredients(ingredients) {
             }
         }
 
-        // Gezondheidsweetje
-        if (ingredient.health_fact) {
+        // Gezondheidsweetje (alleen als het een echte tip is, niet de generieke tekst)
+        if (ingredient.health_fact && ingredient.health_fact !== "Dit ingrediënt draagt bij aan een gevarieerd en uitgebalanceerd voedingspatroon.") {
             const healthFact = document.createElement('div');
             healthFact.className = 'health-fact';
             healthFact.innerHTML = `💡 ${ingredient.health_fact}`;

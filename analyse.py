@@ -309,7 +309,13 @@ def clean_ingredient_text(text: str) -> Optional[str]:
         if alpha_ratio < 0.5:
             return None
 
-    # Remove leading quantities and measurements
+    # More aggressive cleaning for duplicates
+    original_text = text
+    
+    # Remove leading quantities and measurements with better pattern
+    text = re.sub(r'^[gG]\s*\d+\s*[gG]ram\s+', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^[eE][lL]\s*\d+\s*[eE]etlepels?\s+', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^[tT]een\s*\d+\s*[tT]een\s+', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^\d+\s*[.,]?\s*', '', text)
     text = re.sub(r'^\d+\s*(gram|g|ml|eetlepel|el|theelepel|tl|stuks?|teen|liter|l|kopje|blik)\s*', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^[\W\d\s]*', '', text)
@@ -326,7 +332,7 @@ def clean_ingredient_text(text: str) -> Optional[str]:
     if len(text) < 3:
         return None
 
-    logger.debug(f"Cleaned ingredient: '{text}'")
+    logger.debug(f"Cleaned ingredient: '{original_text}' -> '{text}'")
     return text
 
 
@@ -935,18 +941,22 @@ def get_ingredient_health_facts(ingredient_name: str) -> str:
         Provides educational information about ingredient health benefits
     """
     health_facts = {
-        'tomaat': "Tomaten zijn rijk aan lycopeen, een krachtige antioxidant die het risico op hartziekten kan verlagen.",
-        'ui': "Uien bevatten quercetine, een flavonoïde die ontstekingsremmende eigenschappen heeft.",
-        'knoflook': "Knoflook kan helpen bij het verlagen van de bloeddruk en heeft antibacteriële eigenschappen.",
-        'spinazie': "Spinazie is rijk aan ijzer, foliumzuur en vitamine K, belangrijk voor botgezondheid.",
-        'wortel': "Wortelen bevatten bètacaroteen, dat wordt omgezet in vitamine A voor goede oogfunctie.",
-        'paprika': "Paprika's zijn een uitstekende bron van vitamine C, zelfs meer dan citrusvruchten.",
-        'courgette': "Courgettes zijn laag in calorieën en rijk aan kalium, goed voor een gezonde bloeddruk.",
-        'broccoli': "Broccoli bevat sulforafaan, een stof die mogelijk beschermt tegen bepaalde vormen van kanker.",
-        'avocado': "Avocado's bevatten gezonde enkelvoudig onverzadigde vetten die goed zijn voor het hart.",
-        'noten': "Noten zijn rijk aan omega-3 vetzuren en kunnen helpen bij het verlagen van cholesterol.",
-        'vis': "Vette vis bevat omega-3 vetzuren die belangrijk zijn voor de hersenfunctie.",
-        'yoghurt': "Yoghurt bevat probiotica die bijdragen aan een gezonde darmflora."
+        'tomaat': "Tomaten zijn rijk aan lycopeen, een krachtige antioxidant die cellen beschermt tegen schade en het risico op hartziekten en kanker kan verlagen.",
+        'ui': "Uien bevatten quercetine, een flavonoïde die ontstekingen in het lichaam vermindert en het immuunsysteem versterkt.",
+        'knoflook': "Knoflook bevat allicine dat helpt bij het verlagen van bloeddruk en cholesterol, en heeft antibacteriële eigenschappen die infecties bestrijden.",
+        'spinazie': "Spinazie is rijk aan ijzer (voor zuurstoftransport), foliumzuur (voor celgroei) en vitamine K (voor sterke botten en bloedstolling).",
+        'wortel': "Wortelen bevatten bètacaroteen dat in het lichaam wordt omgezet in vitamine A, essentieel voor goed zicht en een sterk immuunsysteem.",
+        'paprika': "Paprika's bevatten meer vitamine C dan sinaasappels - belangrijk voor weerstand, collageen productie en ijzeropname.",
+        'courgette': "Courgettes zijn laag in calorieën en rijk aan kalium dat de bloeddruk reguleert en spieren en zenuwen ondersteunt.",
+        'broccoli': "Broccoli bevat sulforafaan dat de lever helpt bij het ontgiften en mogelijk beschermt tegen kanker door DNA-schade te voorkomen.",
+        'avocado': "Avocado's bevatten gezonde enkelvoudig onverzadigde vetten die 'slecht' cholesterol verlagen en hart- en bloedvaten beschermen.",
+        'noten': "Noten zijn rijk aan omega-3 vetzuren die ontstekingen verminderen, het hart beschermen en de hersenfunctie ondersteunen.",
+        'vis': "Vette vis bevat omega-3 vetzuren (EPA en DHA) die cruciaal zijn voor hersenontwikkeling, geheugen en het verminderen van ontstekingen.",
+        'yoghurt': "Yoghurt bevat probiotica (goede bacteriën) die de darmgezondheid bevorderen, de weerstand versterken en voedingsstoffen beter opnemen.",
+        'peterselie': "Peterselie is rijk aan vitamine K (voor botgezondheid), vitamine C (voor weerstand) en foliumzuur (voor celgroei en hersensfunctie).",
+        'asperges': "Asperges bevatten foliumzuur dat essentieel is voor DNA-synthese en rode bloedcelvorming, plus vezels voor een gezonde spijsvertering.",
+        'nectarine': "Nectarines bevatten vitamine C voor weerstand, vezels voor spijsvertering en antioxidanten die cellen beschermen tegen veroudering.",
+        'olijfolie': "Extra vierge olijfolie bevat gezonde enkelvoudig onverzadigde vetten en antioxidanten die het hart beschermen en ontstekingen verminderen."
     }
 
     ingredient_lower = ingredient_name.lower()
@@ -954,15 +964,17 @@ def get_ingredient_health_facts(ingredient_name: str) -> str:
         if key in ingredient_lower:
             return fact
 
-    # Category-based fallbacks
+    # Enhanced category-based fallbacks with explanations
     if any(veg in ingredient_lower for veg in ['sla', 'andijvie', 'rucola']):
-        return "Groene bladgroenten zijn rijk aan foliumzuur en ijzer, essentieel voor energiemetabolisme."
-    elif 'fruit' in ingredient_lower:
-        return "Fruit bevat natuurlijke suikers, vezels en antioxidanten die bijdragen aan uw dagelijkse vitaminebehoefte."
+        return "Groene bladgroenten zijn rijk aan foliumzuur (voor celgroei en DNA-productie) en ijzer (voor zuurstoftransport in het bloed), essentieel voor energie en vitaliteit."
+    elif any(fruit in ingredient_lower for fruit in ['appel', 'peer', 'aardbei', 'banaan']):
+        return "Fruit bevat natuurlijke suikers voor energie, vezels die cholesterol verlagen en de darmgezondheid bevorderen, plus antioxidanten die cellen beschermen."
     elif 'vlees' in ingredient_lower:
-        return "Vlees is een goede bron van hoogwaardige eiwitten en vitamine B12."
+        return "Vlees levert hoogwaardige eiwitten met alle essentiële aminozuren voor spieropbouw en herstel, plus vitamine B12 voor zenuwfunctie."
+    elif any(herb in ingredient_lower for herb in ['basilicum', 'tijm', 'oregano', 'rozemarijn']):
+        return "Verse kruiden bevatten meer antioxidanten dan veel groenten en hebben ontstekingsremmende eigenschappen die het immuunsysteem versterken."
 
-    return "Dit ingrediënt draagt bij aan een gevarieerd en uitgebalanceerd voedingspatroon."
+    return None
 
 
 def calculate_total_nutrition(all_ingredients: List[Dict[str, Any]]) -> Dict[str, float]:
@@ -1182,6 +1194,7 @@ def analyse(url: str) -> Dict[str, Any]:
         # Process each ingredient
         all_ingredients = []
         swaps = []
+        seen_ingredients = set()  # Track to prevent duplicates
 
         for line in ingredients_list:
             if not line or len(line.strip()) < 2:
@@ -1192,10 +1205,21 @@ def analyse(url: str) -> Dict[str, Any]:
             if len(name.strip()) < 2:
                 continue
 
+            # Normalize name for duplicate checking
+            normalized_name = name.lower().strip()
+            
+            # Skip if we've already seen this ingredient
+            if normalized_name in seen_ingredients:
+                logger.debug(f"Skipping duplicate ingredient: {name}")
+                continue
+            
+            seen_ingredients.add(normalized_name)
+
             # Get health data
             health_score = get_health_score(name)
             nutrition_data = get_nutrition_data(name)
             substitution = find_substitution(name)
+            health_fact = get_ingredient_health_facts(name)
 
             ingredient_data = {
                 "original_line": line,
@@ -1206,7 +1230,7 @@ def analyse(url: str) -> Dict[str, Any]:
                 "nutrition": nutrition_data,
                 "substitution": substitution,
                 "has_healthier_alternative": bool(substitution),
-                "health_fact": get_ingredient_health_facts(name)
+                "health_fact": health_fact
             }
 
             all_ingredients.append(ingredient_data)
