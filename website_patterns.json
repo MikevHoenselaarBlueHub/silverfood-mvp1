@@ -12,5 +12,12 @@
     ],
     "auto_detected": true,
     "success_count": 1
+  },
+  "allrecipes.com": {
+    "ingredient_selectors": [
+      "[class*=\"ingredient\"]"
+    ],
+    "auto_detected": true,
+    "success_count": 1
   }
 }
