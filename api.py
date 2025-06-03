@@ -221,10 +221,8 @@ async def analyse_text_endpoint(request: Request):
 
     # Get text from request body
     try:
-        body = await request.body()
-        import urllib.parse
-        form_data = urllib.parse.parse_qs(body.decode('utf-8'))
-        text = form_data.get('text', [''])[0]
+        body = await request.json()
+        text = body.get('text', '')
     except Exception as e:
         logger.error(f"Failed to parse request body: {e}")
         raise HTTPException(
