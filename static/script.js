@@ -112,9 +112,10 @@ function updateLoadingProgress(message, step) {
 }
 
 async function analyzeRecipe() {
-    // Determine which tab is active
-    const activeTab = document.querySelector('.tab-pane.active');
-    const isUrlTab = activeTab.id === 'url-tab';
+    try {
+        // Determine which tab is active
+        const activeTab = document.querySelector('.tab-pane.active');
+        const isUrlTab = activeTab.id === 'url-tab';
     
     let inputData = '';
     let analysisType = '';
@@ -189,17 +190,34 @@ async function analyzeRecipe() {
         }
 
         if (!response.ok) {
-            const errorData = await response.json();
+            let errorData;
+            try {
+                errorData = await response.json();
+            } catch (parseError) {
+                console.error("Failed to parse error response:", parseError);
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
             throw new Error(
                 errorData.detail ||
                     `HTTP ${response.status}: ${response.statusText}`,
             );
         }
 
-        const data = await response.json();
+        let data;
+        try {
+            data = await response.json();
+        } catch (parseError) {
+            console.error("Failed to parse response:", parseError);
+            throw new Error("Ongeldige response van server. Probeer opnieuw.");
+        }
+        
         displayResults(data);
     } catch (error) {
         console.error("Analysis Error:", error);
+
+        // Check if error has message property
+        const errorMessage = error?.message || error?.detail || String(error);
+        console.log("Error message:", errorMessage);
 
         // Specifieke foutafhandeling met meer detail
         let userMessage =
@@ -207,40 +225,40 @@ async function analyzeRecipe() {
         let errorTitle = "Fout bij analyseren";
 
         if (
-            error.message.includes("Failed to fetch") ||
-            error.message.includes("NetworkError")
+            errorMessage.includes("Failed to fetch") ||
+            errorMessage.includes("NetworkError")
         ) {
             userMessage =
                 "Geen internetverbinding. Controleer uw verbinding en probeer opnieuw.";
             errorTitle = "Verbindingsfout";
-        } else if (error.message.includes("niet ondersteund")) {
+        } else if (errorMessage.includes("niet ondersteund")) {
             userMessage =
                 "Deze website wordt niet ondersteund. Probeer een recept van AH Allerhande of Jumbo.";
             errorTitle = "Website niet ondersteund";
-        } else if (error.message.includes("429")) {
+        } else if (errorMessage.includes("429")) {
             userMessage =
                 "Te veel verzoeken. Wacht een minuut en probeer opnieuw.";
             errorTitle = "Te druk";
         } else if (
-            error.message.includes("geen ingrediënten") ||
-            error.message.includes("Geen ingrediënten")
+            errorMessage.includes("geen ingrediënten") ||
+            errorMessage.includes("Geen ingrediënten")
         ) {
             userMessage =
                 "Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen receptpagina\n\nProbeer een andere recept-URL.";
             errorTitle = "Geen ingrediënten gevonden";
-        } else if (error.message.includes("tijdelijk niet beschikbaar")) {
+        } else if (errorMessage.includes("tijdelijk niet beschikbaar")) {
             userMessage =
                 "De analyseservice is tijdelijk niet beschikbaar. Dit kan komen door serveronderhoud. Probeer het over een paar minuten opnieuw.";
             errorTitle = "Service tijdelijk niet beschikbaar";
         } else if (
-            error.message.includes("geblokkeerd") ||
-            error.message.includes("403")
+            errorMessage.includes("geblokkeerd") ||
+            errorMessage.includes("403")
         ) {
             userMessage =
                 "Deze website blokkeert automatische toegang. Probeer een andere recept-URL van een ondersteunde website.";
             errorTitle = "Website blokkeert toegang";
-        } else if (error.message) {
-            userMessage = error.message;
+        } else if (errorMessage) {
+            userMessage = errorMessage;
         }
 
         showError(userMessage, errorTitle);
@@ -250,6 +268,16 @@ async function analyzeRecipe() {
         console.log("Error details:", error);
     } finally {
         // Reset UI
+        analyzeBtn.disabled = false;
+        btnText.textContent = "Analyseer Recept";
+        loader.style.display = "none";
+        hideLoadingMessage();
+    }
+    } catch (globalError) {
+        console.error("Global error in analyzeRecipe:", globalError);
+        showError("Er is een onverwachte fout opgetreden. Herlaad de pagina en probeer opnieuw.", "Onverwachte fout");
+        
+        // Reset UI in case of global error
         analyzeBtn.disabled = false;
         btnText.textContent = "Analyseer Recept";
         loader.style.display = "none";
@@ -1099,11 +1127,30 @@ function stopHealthTips() {
     }
 }
 
+// Global error handlers
+window.addEventListener('error', function(e) {
+    console.error('Global JavaScript error:', e.error);
+    if (e.error) {
+        showError("Er is een JavaScript fout opgetreden. Herlaad de pagina en probeer opnieuw.", "JavaScript Fout");
+    }
+});
+
+window.addEventListener('unhandledrejection', function(e) {
+    console.error('Unhandled promise rejection:', e.reason);
+    e.preventDefault(); // Prevent default browser behavior
+    showError("Er is een fout opgetreden bij het verwerken van een verzoek. Probeer opnieuw.", "Verzoek Fout");
+});
+
 // Toon shortcuts info en laad data
 window.addEventListener("load", async () => {
-    console.log("Sneltoetsen: Alt+A = Analyseren, Escape = Fout sluiten");
-    await loadConfiguration();
-    await loadHealthTips();
+    try {
+        console.log("Sneltoetsen: Alt+A = Analyseren, Escape = Fout sluiten");
+        await loadConfiguration();
+        await loadHealthTips();
+    } catch (error) {
+        console.error("Error loading configuration:", error);
+        // Continue with defaults if configuration fails
+    }
 });
 
 // Laad configuratie vanuit config.json

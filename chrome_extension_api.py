@@ -5,7 +5,7 @@ import json
 import logging
 from typing import Dict, Any
 from analyse import analyse
-from debug_helper import debug
+import debug_helper
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +87,7 @@ class ChromeExtensionAPI:
                 return extension_result
                 
             except Exception as e:
-                debug.logger.error(f"Extension analysis failed: {e}")
+                debug_helper.logger.error(f"Extension analysis failed: {e}")
                 return {
                     "success": False,
                     "error": str(e),
