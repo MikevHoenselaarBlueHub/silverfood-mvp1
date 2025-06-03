@@ -1300,51 +1300,59 @@ def extract_ingredients_from_text(text):
     lines = text.split('\n')
     ingredients = []
 
-    # Patterns for ingredient detection
-    ingredient_patterns = [
-        r'^[-*•]\s*(.+)',  # Bullet points
-        r'^\d+[\.\)]\s*(.+)',  # Numbered lists
-        r'^(\d+(?:[.,]\d+)?\s*(?:gram|g|ml|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes)?\s+.+)',  # Amount + ingredient
-        r'^([A-Z][^.!?]*(?:gram|g|ml|liter|l|eetlepel|el|theelepel|tl|kopje|stuk|st|teen|teentje|blik|pak|zakje)[^.!?]*)',  # Lines containing units
-    ]
-
     for line in lines:
         line = line.strip()
         if not line or len(line) < 3:
             continue
+            
+        # Skip obvious headers or instructions
+        if any(skip in line.lower() for skip in ['ingrediënten:', 'ingredients:', 'recept', 'bereiding']):
+            continue
+            
+        # Look for lines with numbers and units (like "110 g Rigatoni")
+        if re.search(r'\d+(?:[.,]\d+)?\s*(?:g|gram|ml|l|liter|tl|el|theelepel|eetlepel|kopje|stuk|st|teen|takje|snufje)', line, re.IGNORECASE):
+            ingredients.append(line)
+            continue
+            
+        # Look for lines starting with numbers
+        if re.match(r'^\d+', line):
+            ingredients.append(line)
+            continue
+            
+        # Look for bullet points or list items
+        if re.match(r'^[-*•]\s*', line):
+            ingredients.append(re.sub(r'^[-*•]\s*', '', line))
+            continue
+            
+        # For short lines that might be simple ingredients
+        if len(line.split()) <= 6 and not re.search(r'[.!?]$', line):
+            ingredients.append(line)
 
-        # Try each pattern
-        for pattern in ingredient_patterns:
-            match = re.search(pattern, line, re.IGNORECASE)
-            if match:
-                ingredient = match.group(1) if len(match.groups()) > 0 else line
-                ingredients.append(ingredient.strip())
-                break
-        else:
-            # If no pattern matches but line looks like an ingredient
-            if re.search(r'\b(?:gram|g|ml|liter|l|eetlepel|el|theelepel|tl|kopje|stuk|st|teen|teentje|blik|pak|zakje)\b', line, re.IGNORECASE):
-                ingredients.append(line)
-            elif len(line.split()) <= 5 and not re.search(r'[.!?]$', line):
-                # Short lines without punctuation might be ingredients
-                ingredients.append(line)
-
+    logger.debug(f"Extracted {len(ingredients)} ingredients from text")
     return ingredients
 
-def analyse(url: str) -> Dict[str, Any]:
+def analyse(url_or_text: str) -> Dict[str, Any]:
     """
     Main analysis function that coordinates the entire recipe analysis process.
 
     Args:
-        url (str): URL of the recipe page to analyze
+        url_or_text (str): URL of the recipe page or direct text to analyze
 
     Returns:
         Dict[str, Any]: Complete analysis results including ingredients, 
                        nutrition, health scores, and recommendations
     """
-    logger.info(f"Starting analysis for {url}")
+    logger.info(f"Starting analysis for {url_or_text[:50]}...")
 
-    # Extract ingredients
-    ingredients_list, recipe_title = smart_ingredient_scraping(url)
+    # Check if input is URL or direct text
+    if url_or_text.startswith(('http://', 'https://')):
+        # Extract ingredients from URL
+        ingredients_list, recipe_title = smart_ingredient_scraping(url_or_text)
+    else:
+        # Extract ingredients from direct text
+        logger.info("Processing direct text input")
+        ingredients_list = extract_ingredients_from_text(url_or_text)
+        recipe_title = "Tekst Analyse"
 
     if not ingredients_list or len(ingredients_list) < 3:
         raise Exception("Geen voldoende ingrediënten gevonden")

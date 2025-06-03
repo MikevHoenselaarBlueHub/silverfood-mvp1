@@ -214,10 +214,23 @@ async def analyse_endpoint(request: Request, url: str):
                 detail="Er is een onverwachte fout opgetreden bij het analyseren van deze pagina. Probeer het later opnieuw of gebruik een andere recept-URL."
             )
 
-@app.post("/analyse_text")
-async def analyse_text_endpoint(request: Request, text: str):
+@app.post("/analyse-text")
+async def analyse_text_endpoint(request: Request):
     """Analyseer recept van tekst met adaptieve detectie"""
     client_ip = request.client.host
+
+    # Get text from request body
+    try:
+        body = await request.body()
+        import urllib.parse
+        form_data = urllib.parse.parse_qs(body.decode('utf-8'))
+        text = form_data.get('text', [''])[0]
+    except Exception as e:
+        logger.error(f"Failed to parse request body: {e}")
+        raise HTTPException(
+            status_code=400,
+            detail="Ongeldige request format."
+        )
 
     # Rate limiting from config
     max_req = CONFIG.get("api", {}).get("rate_limit_requests", 8)
