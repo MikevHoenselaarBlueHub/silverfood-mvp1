@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -58,20 +57,20 @@ request_history = {}
 def rate_limit_check(client_ip: str, max_requests: int = 10, window_seconds: int = 60):
     """Simpele rate limiting"""
     current_time = time.time()
-    
+
     cutoff_time = current_time - window_seconds
     request_history[client_ip] = [
         req_time for req_time in request_history.get(client_ip, [])
         if req_time > cutoff_time
     ]
-    
+
     if len(request_history.get(client_ip, [])) >= max_requests:
         return False
-    
+
     if client_ip not in request_history:
         request_history[client_ip] = []
     request_history[client_ip].append(current_time)
-    
+
     return True
 
 def validate_url_format(url: str) -> bool:
@@ -90,14 +89,14 @@ async def log_requests(request: Request, call_next):
     """Log alle requests voor monitoring"""
     start_time = time.time()
     client_ip = request.client.host
-    
+
     logger.info(f"Request: {request.method} {request.url} from {client_ip}")
-    
+
     response = await call_next(request)
-    
+
     process_time = time.time() - start_time
     logger.info(f"Response: {response.status_code} in {process_time:.2f}s")
-    
+
     return response
 
 @app.get("/")
@@ -109,7 +108,7 @@ async def root():
 async def analyse_endpoint(request: Request, url: str):
     """Analyseer recept van URL met adaptieve detectie"""
     client_ip = request.client.host
-    
+
     # Rate limiting from config
     max_req = CONFIG.get("api", {}).get("rate_limit_requests", 8)
     window_sec = CONFIG.get("api", {}).get("rate_limit_window_seconds", 60)
@@ -119,7 +118,7 @@ async def analyse_endpoint(request: Request, url: str):
             status_code=429, 
             detail="Te veel verzoeken. Probeer het over een minuut opnieuw."
         )
-    
+
     # Input validatie
     if not url or not url.strip():
         raise HTTPException(
@@ -128,14 +127,14 @@ async def analyse_endpoint(request: Request, url: str):
         )
 
     url = url.strip()
-    
+
     # Basis URL format validatie
     if not validate_url_format(url):
         raise HTTPException(
             status_code=400, 
             detail="Ongeldige URL format. De URL moet beginnen met http:// of https:// en een domein bevatten."
         )
-    
+
     # Maximale URL lengte from config
     max_length = CONFIG.get("ui", {}).get("max_url_length", 500)
     if len(url) > max_length:
@@ -148,19 +147,19 @@ async def analyse_endpoint(request: Request, url: str):
     try:
         parsed = urlparse(url.lower())
         domain = parsed.netloc.replace('www.', '')
-        
+
         # Blokkeer lokale/private IPs en gevaarlijke protocollen
         blocked_patterns = [
             'localhost', '127.0.0.1', '0.0.0.0', '192.168.', '10.', '172.',
             'file://', 'ftp://', 'javascript:', 'data:'
         ]
-        
+
         if any(pattern in url.lower() for pattern in blocked_patterns):
             raise HTTPException(
                 status_code=400,
                 detail="Deze URL wordt niet ondersteund om veiligheidsredenen."
             )
-            
+
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
@@ -171,13 +170,13 @@ async def analyse_endpoint(request: Request, url: str):
         result = analyse(url)
         logger.info(f"Analysis successful for {client_ip}")
         return result
-        
+
     except HTTPException:
         raise
     except Exception as e:
         error_message = str(e)
         logger.error(f"Analysis failed for {client_ip}: {error_message}")
-        
+
         # Gebruikersvriendelijke foutmeldingen
         if "geen ingrediënten" in error_message.lower():
             raise HTTPException(
@@ -215,6 +214,79 @@ async def analyse_endpoint(request: Request, url: str):
                 detail="Er is een onverwachte fout opgetreden bij het analyseren van deze pagina. Probeer het later opnieuw of gebruik een andere recept-URL."
             )
 
+@app.post("/analyse_text")
+async def analyse_text_endpoint(request: Request, text: str):
+    """Analyseer recept van tekst met adaptieve detectie"""
+    client_ip = request.client.host
+
+    # Rate limiting from config
+    max_req = CONFIG.get("api", {}).get("rate_limit_requests", 8)
+    window_sec = CONFIG.get("api", {}).get("rate_limit_window_seconds", 60)
+    if not rate_limit_check(client_ip, max_requests=max_req, window_seconds=window_sec):
+        logger.warning(f"Rate limit exceeded for {client_ip}")
+        raise HTTPException(
+            status_code=429,
+            detail="Te veel verzoeken. Probeer het over een minuut opnieuw."
+        )
+
+    # Input validatie
+    if not text or not text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Geen tekst opgegeven. Voer geldige recept tekst in."
+        )
+
+    text = text.strip()
+
+    try:
+        logger.info(f"Analysing recipe from text for {client_ip}")
+        result = analyse(text)
+        logger.info(f"Analysis successful for {client_ip}")
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_message = str(e)
+        logger.error(f"Analysis failed for {client_ip}: {error_message}")
+
+        # Gebruikersvriendelijke foutmeldingen
+        if "geen ingrediënten" in error_message.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="Geen ingrediënten gevonden in deze tekst. Dit lijkt geen recept te zijn, of de website gebruikt een onbekende structuur. Probeer een andere recept-URL."
+            )
+        elif "not valid json" in error_message.lower() or "unexpected token" in error_message.lower():
+            raise HTTPException(
+                status_code=403,
+                detail="Deze website blokkeert automatische toegang en stuurt HTML in plaats van data terug. Probeer een andere recept-URL of kopieer de ingrediënten handmatig."
+            )
+        elif "403" in error_message or "forbidden" in error_message.lower():
+            raise HTTPException(
+                status_code=403,
+                detail="Deze website blokkeert automatische toegang. Probeer een andere recept-URL."
+            )
+        elif "404" in error_message or "not found" in error_message.lower():
+            raise HTTPException(
+                status_code=404,
+                detail="Pagina niet gevonden. Controleer of de URL correct is."
+            )
+        elif "timeout" in error_message.lower() or "time" in error_message.lower():
+            raise HTTPException(
+                status_code=408,
+                detail="Het ophalen van het recept duurt te lang. Controleer de URL en probeer opnieuw."
+            )
+        elif "ssl" in error_message.lower() or "certificate" in error_message.lower():
+            raise HTTPException(
+                status_code=400,
+                detail="SSL certificaat probleem met deze website. Probeer een andere recept-URL."
+            )
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail="Er is een onverwachte fout opgetreden bij het analyseren van deze pagina. Probeer het later opnieuw of gebruik een andere recept-URL."
+            )
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -227,7 +299,7 @@ async def health_check():
         selenium_available = bool(chrome_binary and chromedriver_binary)
     except:
         pass
-    
+
     import shutil
     return {
         "status": "healthy", 
@@ -284,7 +356,7 @@ async def learned_patterns():
         import json
         with open("website_patterns.json", encoding="utf-8") as f:
             patterns = json.load(f)
-        
+
         summary = {}
         for domain, pattern_data in patterns.items():
             summary[domain] = {
@@ -292,7 +364,7 @@ async def learned_patterns():
                 "auto_detected": pattern_data.get("auto_detected", False),
                 "selectors_count": len(pattern_data.get("ingredient_selectors", []))
             }
-        
+
         return {
             "learned_sites": summary,
             "total_sites": len(patterns),
@@ -320,35 +392,35 @@ async def get_ai_explanation(ingredients: str, explanation_type: str):
             logger.error("OpenAI API key not found in environment variables")
             fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
             return {"explanation": fallback_msg}
-        
+
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        
+
         if explanation_type == "healthy":
             prompt = f"""
             Je bent een voedingsexpert. Leg in 1-2 zinnen uit waarom deze gezonde ingrediënten zo goed zijn:
-            
+
             Ingrediënten: {ingredients}
-            
+
             Geef een korte, positieve uitleg in het Nederlands (max 100 woorden) over waarom deze ingrediënten gezond zijn.
             Focus op de belangrijkste voedingsstoffen en gezondheidsvoordelen.
             """
         else:
             prompt = f"""
             Je bent een voedingsexpert. Leg uit waarom deze ingrediënten minder gezond zijn en geef praktische tips:
-            
+
             Ingrediënten: {ingredients}
-            
+
             Geef een korte, begrijpelijke uitleg in het Nederlands (max 200 woorden) over:
             1. Waarom deze ingrediënten minder gezond zijn
             2. Wat je in plaats daarvan zou kunnen gebruiken
             3. Hoe je deze ingrediënten in balans kunt houden
-            
+
             Wees positief en niet te streng - geef praktische tips.
             """
-        
+
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -358,14 +430,14 @@ async def get_ai_explanation(ingredients: str, explanation_type: str):
             "max_tokens": 200 if explanation_type == "healthy" else 300,
             "temperature": 0.7
         }
-        
+
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
             timeout=15
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             explanation = result['choices'][0]['message']['content'].strip()
@@ -374,11 +446,6 @@ async def get_ai_explanation(ingredients: str, explanation_type: str):
             logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
             fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
             return {"explanation": fallback_msg}
-            
-    except Exception as e:
-        logger.error(f"Failed to get AI explanation: {e}")
-        fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
-        return {"explanation": fallback_msg}
 
 # Error handlers
 @app.exception_handler(404)

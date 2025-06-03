@@ -834,9 +834,10 @@ def parse_quantity(line: str) -> Tuple[Optional[float], Optional[str], str]:
         >>> parse_quantity("200 gram tomaten, in blokjes")
         (200.0, 'gram', 'tomaten')
     """
+    # Verbeterde regex patterns voor Nederlandse recepten
     patterns = [
         r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s*(gram|g|ml|milliliter|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes)\s+(.*)",
-        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",
+        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",
         r"(\d+(?:[.,]\d+)?)\s+(.*)",
         r"(een\s+(?:half|halve|kwart|hele)?)\s+(.*)",
         r"(½|¼|¾|⅓|⅔|⅛)\s+(.*)",
@@ -1249,6 +1250,86 @@ Geef geen uitleg, alleen de JSON."""
         logger.error(f"Failed to validate ingredients with OpenAI: {e}")
         return ingredients_list  # Return original list on error
 
+def analyse_text_directly(text):
+    """Analyse functie voor directe tekst input"""
+    logger.info("Starting text analysis")
+
+    try:
+        # Extract ingredients from text using patterns
+        ingredients = extract_ingredients_from_text(text)
+
+        if not ingredients:
+            raise Exception("Geen ingrediënten gevonden in de tekst. Controleer of de tekst ingrediënten bevat.")
+
+        logger.info(f"Found {len(ingredients)} ingredients in text")
+
+        # Process ingredients the same way as URL analysis
+        all_ingredients = []
+        for ingredient_text in ingredients:
+            ingredient_data = analyze_ingredient(ingredient_text.strip())
+            if ingredient_data:
+                all_ingredients.append(ingredient_data)
+
+        # Calculate nutrition and health scores
+        total_nutrition = calculate_total_nutrition(all_ingredients)
+        health_goals_scores = calculate_health_goals_scores(all_ingredients, total_nutrition)
+        health_explanation = generate_health_explanation(all_ingredients, health_goals_scores)
+        swaps = generate_healthier_swaps(all_ingredients)
+
+        result = {
+            "success": True,
+            "recipe_title": "Tekst Analyse",
+            "source": "direct_text",
+            "all_ingredients": all_ingredients,
+            "total_nutrition": total_nutrition,
+            "health_goals_scores": health_goals_scores,
+            "health_explanation": health_explanation,
+            "swaps": swaps,
+            "ingredient_count": len(all_ingredients)
+        }
+
+        logger.info("Text analysis completed successfully")
+        return result
+
+    except Exception as e:
+        logger.error(f"Text analysis failed: {e}")
+        raise
+
+def extract_ingredients_from_text(text):
+    """Extract ingredients from plain text"""
+    lines = text.split('\n')
+    ingredients = []
+
+    # Patterns for ingredient detection
+    ingredient_patterns = [
+        r'^[-*•]\s*(.+)',  # Bullet points
+        r'^\d+[\.\)]\s*(.+)',  # Numbered lists
+        r'^(\d+(?:[.,]\d+)?\s*(?:gram|g|ml|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes)?\s+.+)',  # Amount + ingredient
+        r'^([A-Z][^.!?]*(?:gram|g|ml|liter|l|eetlepel|el|theelepel|tl|kopje|stuk|st|teen|teentje|blik|pak|zakje)[^.!?]*)',  # Lines containing units
+    ]
+
+    for line in lines:
+        line = line.strip()
+        if not line or len(line) < 3:
+            continue
+
+        # Try each pattern
+        for pattern in ingredient_patterns:
+            match = re.search(pattern, line, re.IGNORECASE)
+            if match:
+                ingredient = match.group(1) if len(match.groups()) > 0 else line
+                ingredients.append(ingredient.strip())
+                break
+        else:
+            # If no pattern matches but line looks like an ingredient
+            if re.search(r'\b(?:gram|g|ml|liter|l|eetlepel|el|theelepel|tl|kopje|stuk|st|teen|teentje|blik|pak|zakje)\b', line, re.IGNORECASE):
+                ingredients.append(line)
+            elif len(line.split()) <= 5 and not re.search(r'[.!?]$', line):
+                # Short lines without punctuation might be ingredients
+                ingredients.append(line)
+
+    return ingredients
+
 def analyse(url: str) -> Dict[str, Any]:
     """
     Main analysis function that coordinates the entire recipe analysis process.
@@ -1269,12 +1350,22 @@ def analyse(url: str) -> Dict[str, Any]:
         raise Exception("Geen voldoende ingrediënten gevonden")
 
     # Validate ingredients using OpenAI to filter out non-food items
-    import asyncio
+    
     try:
-        validated_ingredients = asyncio.run(validate_ingredients_with_openai(ingredients_list))
-        if validated_ingredients and len(validated_ingredients) < len(ingredients_list):
-            logger.info(f"Filtered {len(ingredients_list)} raw items to {len(validated_ingredients)} valid ingredients")
-            ingredients_list = validated_ingredients
+        # OpenAI ingredient validation - fixed asyncio issue
+        import asyncio
+        try:
+            loop = asyncio.get_event_loop()
+            if loop.is_running():
+                # We're in an async context, skip validation to avoid nested event loop
+                logger.info("Skipping ingredient validation due to running event loop")
+            else:
+                validated_ingredients = asyncio.run(validate_ingredients_with_openai(ingredients_list))
+                if validated_ingredients:
+                    ingredients_list = validated_ingredients
+        except RuntimeError:
+            # Event loop already running
+            logger.info("Skipping ingredient validation due to running event loop")
     except Exception as e:
         logger.warning(f"Ingredient validation failed, using original list: {e}")
 

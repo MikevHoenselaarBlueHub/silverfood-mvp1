@@ -20,12 +20,32 @@
 
         <main class="main">
             <div class="input-section">
-                <div class="input-group">
-                    <label for="recipeUrl">Recept URL</label>
-                    <input type="url" 
-                           id="recipeUrl" 
-                           placeholder="Plak hier de URL van uw recept (bijv. van Allerhande)"
-                           value="">
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-btn active" data-tab="url-tab">Op basis van URL</button>
+                        <button class="tab-btn" data-tab="text-tab">Kopiëren en plakken</button>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <div id="url-tab" class="tab-pane active">
+                            <div class="input-group">
+                                <label for="recipeUrl">Recept URL</label>
+                                <input type="url" 
+                                       id="recipeUrl" 
+                                       placeholder="Plak hier de URL van uw recept (bijv. van Allerhande)"
+                                       value="">
+                            </div>
+                        </div>
+                        
+                        <div id="text-tab" class="tab-pane">
+                            <div class="input-group">
+                                <label for="recipeText">Recept tekst</label>
+                                <textarea id="recipeText" 
+                                         placeholder="Plak hier de ingrediëntenlijst of het hele recept...&#10;&#10;Bijvoorbeeld:&#10;- 2 uien&#10;- 300g gehakt&#10;- 1 blik tomaten&#10;- 200ml room"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <button id="analyzeBtn" class="btn-primary">
                         <span class="btn-text">Analyseer Recept</span>
                         <div class="loader" style="display: none;"></div>

@@ -42,6 +42,36 @@ recipeUrlInput.addEventListener("keypress", (e) => {
     }
 });
 
+// Tab switching functionality
+document.addEventListener('DOMContentLoaded', function() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    
+    tabButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const targetTab = this.getAttribute('data-tab');
+            
+            // Remove active class from all buttons and panes
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabPanes.forEach(pane => pane.classList.remove('active'));
+            
+            // Add active class to clicked button and target pane
+            this.classList.add('active');
+            document.getElementById(targetTab).classList.add('active');
+        });
+    });
+    
+    // Add textarea element reference
+    window.recipeTextArea = document.getElementById('recipeText');
+    if (window.recipeTextArea) {
+        window.recipeTextArea.addEventListener("keypress", (e) => {
+            if (e.key === "Enter" && e.ctrlKey) {
+                analyzeRecipe();
+            }
+        });
+    }
+});
+
 // Input validatie met real-time feedback
 recipeUrlInput.addEventListener("input", (e) => {
     const url = e.target.value.trim();
@@ -82,22 +112,50 @@ function updateLoadingProgress(message, step) {
 }
 
 async function analyzeRecipe() {
-    const url = recipeUrlInput.value.trim();
-
-    if (!url) {
-        showError("Voer eerst een recept URL in", "Geen URL ingevuld");
-        recipeUrlInput.focus(); // Focus terug naar input
-        return;
-    }
-
-    // Basis URL validatie
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        showError(
-            "De URL moet beginnen met http:// of https://",
-            "Ongeldige URL",
-        );
-        recipeUrlInput.focus();
-        return;
+    // Determine which tab is active
+    const activeTab = document.querySelector('.tab-pane.active');
+    const isUrlTab = activeTab.id === 'url-tab';
+    
+    let inputData = '';
+    let analysisType = '';
+    
+    if (isUrlTab) {
+        inputData = recipeUrlInput.value.trim();
+        analysisType = 'url';
+        
+        if (!inputData) {
+            showError("Voer eerst een recept URL in", "Geen URL ingevuld");
+            recipeUrlInput.focus();
+            return;
+        }
+        
+        // Basis URL validatie
+        if (!inputData.startsWith("http://") && !inputData.startsWith("https://")) {
+            showError(
+                "De URL moet beginnen met http:// of https://",
+                "Ongeldige URL",
+            );
+            recipeUrlInput.focus();
+            return;
+        }
+    } else {
+        inputData = window.recipeTextArea.value.trim();
+        analysisType = 'text';
+        
+        if (!inputData) {
+            showError("Voer eerst recept tekst in", "Geen tekst ingevuld");
+            window.recipeTextArea.focus();
+            return;
+        }
+        
+        if (inputData.length < 20) {
+            showError(
+                "De recept tekst is te kort. Voer meer ingrediënten of recept informatie in.",
+                "Tekst te kort"
+            );
+            window.recipeTextArea.focus();
+            return;
+        }
     }
 
     // UI updates voor loading state - meer duidelijk voor senioren
@@ -116,7 +174,19 @@ async function analyzeRecipe() {
     setTimeout(() => updateLoadingProgress("Voedingswaarden analyseren...", 3), 4000);
 
     try {
-        const response = await fetch(`/analyse?url=${encodeURIComponent(url)}`);
+        let response;
+        
+        if (analysisType === 'url') {
+            response = await fetch(`/analyse?url=${encodeURIComponent(inputData)}`);
+        } else {
+            response = await fetch('/analyse-text', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ text: inputData })
+            });
+        }
 
         if (!response.ok) {
             const errorData = await response.json();
