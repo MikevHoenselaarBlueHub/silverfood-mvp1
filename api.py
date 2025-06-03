@@ -477,6 +477,3 @@ async def internal_error_handler(request: Request, exc):
         status_code=500,
         detail="Er is een interne serverfout opgetreden. Probeer het later opnieuw."
     )
-```
-
-The code has been modified to improve error logging for text analysis.

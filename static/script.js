@@ -46,21 +46,21 @@ recipeUrlInput.addEventListener("keypress", (e) => {
 document.addEventListener('DOMContentLoaded', function() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabPanes = document.querySelectorAll('.tab-pane');
-    
+
     tabButtons.forEach(button => {
         button.addEventListener('click', function() {
             const targetTab = this.getAttribute('data-tab');
-            
+
             // Remove active class from all buttons and panes
             tabButtons.forEach(btn => btn.classList.remove('active'));
             tabPanes.forEach(pane => pane.classList.remove('active'));
-            
+
             // Add active class to clicked button and target pane
             this.classList.add('active');
             document.getElementById(targetTab).classList.add('active');
         });
     });
-    
+
     // Add textarea element reference
     window.recipeTextArea = document.getElementById('recipeText');
     if (window.recipeTextArea) {
@@ -116,20 +116,20 @@ async function analyzeRecipe() {
         // Determine which tab is active
         const activeTab = document.querySelector('.tab-pane.active');
         const isUrlTab = activeTab.id === 'url-tab';
-    
+
     let inputData = '';
     let analysisType = '';
-    
+
     if (isUrlTab) {
         inputData = recipeUrlInput.value.trim();
         analysisType = 'url';
-        
+
         if (!inputData) {
             showError("Voer eerst een recept URL in", "Geen URL ingevuld");
             recipeUrlInput.focus();
             return;
         }
-        
+
         // Basis URL validatie
         if (!inputData.startsWith("http://") && !inputData.startsWith("https://")) {
             showError(
@@ -142,13 +142,13 @@ async function analyzeRecipe() {
     } else {
         inputData = window.recipeTextArea.value.trim();
         analysisType = 'text';
-        
+
         if (!inputData) {
             showError("Voer eerst recept tekst in", "Geen tekst ingevuld");
             window.recipeTextArea.focus();
             return;
         }
-        
+
         if (inputData.length < 20) {
             showError(
                 "De recept tekst is te kort. Voer meer ingrediënten of recept informatie in.",
@@ -176,7 +176,7 @@ async function analyzeRecipe() {
 
     try {
         let response;
-        
+
         if (analysisType === 'url') {
             response = await fetch(`/analyse?url=${encodeURIComponent(inputData)}`);
         } else {
@@ -210,7 +210,7 @@ async function analyzeRecipe() {
             console.error("Failed to parse response:", parseError);
             throw new Error("Ongeldige response van server. Probeer opnieuw.");
         }
-        
+
         displayResults(data);
     } catch (error) {
         console.error("Analysis Error:", error);
@@ -276,7 +276,7 @@ async function analyzeRecipe() {
     } catch (globalError) {
         console.error("Global error in analyzeRecipe:", globalError);
         showError("Er is een onverwachte fout opgetreden. Herlaad de pagina en probeer opnieuw.", "Onverwachte fout");
-        
+
         // Reset UI in case of global error
         analyzeBtn.disabled = false;
         btnText.textContent = "Analyseer Recept";
