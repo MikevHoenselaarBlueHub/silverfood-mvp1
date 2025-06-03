@@ -80,7 +80,7 @@ class BackgroundService {
 
 // Initialize background service
 new BackgroundService();
-            const response = await fetch(`https://your-replit-app.replit.app/extension/quick-check?url=${encodeURIComponent(tab.url)}`);
+            const response = await fetch(`${window.location.origin}/extension/quick-check?url=${encodeURIComponent(tab.url)}`);
             const data = await response.json();
             
             if (data.health_score > 0) {

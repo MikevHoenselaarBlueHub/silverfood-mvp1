@@ -124,6 +124,30 @@ class ChromeExtensionAPI:
                 result = analyse(url)
                 suggestions = []
                 
+                # Generate suggestions based on analysis
+                unhealthy_ingredients = [ing for ing in result.get("all_ingredients", []) if ing.get("health_score", 5) < 6]
+                
+                if unhealthy_ingredients:
+                    suggestions.append({
+                        "type": "swap",
+                        "message": f"Overweeg gezondere alternatieven voor {len(unhealthy_ingredients)} ingrediënten",
+                        "count": len(unhealthy_ingredients)
+                    })
+                
+                health_score = result.get("health_score", 5)
+                if health_score < 6:
+                    suggestions.append({
+                        "type": "health",
+                        "message": "Dit recept zou baat hebben bij gezondere ingrediënten",
+                        "score": health_score
+                    })
+                
+                return {
+                    "suggestions": suggestions,
+                    "health_score": health_score,
+                    "ingredient_count": len(result.get("all_ingredients", []))
+                }
+                
                 for swap in result.get("swaps", [])[:3]:
                     suggestions.append({
                         "original": swap.get("ongezond_ingredient", ""),

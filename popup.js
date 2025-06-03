@@ -1,7 +1,7 @@
 // Popup script for Silverfood Chrome Extension
 class SilverfoodPopup {
     constructor() {
-        this.apiUrl = 'https://your-replit-app.replit.app';
+        this.apiUrl = window.location.origin;
         this.init();
     }
 
