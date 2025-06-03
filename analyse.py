@@ -1,7 +1,3 @@
-Applying OpenAI ingredient validation, adding Southern Living ingredient selector, and addressing ingredient validation and language issues.
-```
-
-```python
 """
 Silverfood Recipe Analysis Module
 =================================
@@ -840,7 +836,7 @@ def parse_quantity(line: str) -> Tuple[Optional[float], Optional[str], str]:
     """
     patterns = [
         r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s*(gram|g|ml|milliliter|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes)\s+(.*)",
-        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",
+        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",
         r"(\d+(?:[.,]\d+)?)\s+(.*)",
         r"(een\s+(?:half|halve|kwart|hele)?)\s+(.*)",
         r"(½|¼|¾|⅓|⅔|⅛)\s+(.*)",

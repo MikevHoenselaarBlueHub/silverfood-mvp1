@@ -67,6 +67,20 @@ function validateUrl(url) {
     }
 }
 
+let currentProgress = 0;
+
+function updateLoadingProgress(message, step) {
+    const progressContainer = document.querySelector('.loading-progress');
+    if (progressContainer) {
+        progressContainer.innerHTML = `
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: ${(step / 4) * 100}%"></div>
+            </div>
+            <div class="progress-message">${message}</div>
+        `;
+    }
+}
+
 async function analyzeRecipe() {
     const url = recipeUrlInput.value.trim();
 
@@ -95,6 +109,11 @@ async function analyzeRecipe() {
 
     // Toon vriendelijke loading bericht
     showLoadingMessage();
+
+    // Add progress steps
+    updateLoadingProgress("Pagina ophalen...", 1);
+    setTimeout(() => updateLoadingProgress("Ingrediënten detecteren...", 2), 2000);
+    setTimeout(() => updateLoadingProgress("Voedingswaarden analyseren...", 3), 4000);
 
     try {
         const response = await fetch(`/analyse?url=${encodeURIComponent(url)}`);
@@ -169,6 +188,13 @@ async function analyzeRecipe() {
 }
 
 function showLoadingMessage() {
+    const messages = [
+        "🔍 Pagina wordt geanalyseerd...",
+        "📊 Ingrediënten worden geëxtraheerd...",
+        "🧠 AI analyseert de voedingswaarden...",
+        "⚡ Gezondheidsscores worden berekend...",
+        "🍽️ Receptanalyse bijna klaar..."
+    ];
     const loadingDiv = document.createElement("div");
     loadingDiv.id = "loadingMessage";
     loadingDiv.style.cssText = `
@@ -204,6 +230,18 @@ function showLoadingMessage() {
     `;
 
     loadingDiv.appendChild(healthTipDiv);
+
+    // Add progress bar
+    const progressDiv = document.createElement('div');
+    progressDiv.className = 'loading-progress';
+    progressDiv.innerHTML = `
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 0%"></div>
+        </div>
+        <div class="progress-message">Pagina ophalen...</div>
+    `;
+    progressDiv.style.marginTop = '15px';
+    loadingDiv.appendChild(progressDiv);
 
     // Voeg toe na input sectie
     const inputSection = document.querySelector(".input-section");
