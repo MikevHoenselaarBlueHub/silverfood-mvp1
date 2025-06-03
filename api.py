@@ -446,6 +446,11 @@ async def get_ai_explanation(ingredients: str, explanation_type: str):
             logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
             fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
             return {"explanation": fallback_msg}
+    
+    except Exception as e:
+        logger.error(f"AI explanation error: {e}")
+        fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
+        return {"explanation": fallback_msg}
 
 # Error handlers
 @app.exception_handler(404)
