@@ -221,15 +221,16 @@ async def health_check():
     except:
         pass
     
-    return {
+    import shutil
+        return {
         "status": "healthy", 
         "message": "Silverfood API is actief",
         "version": "3.1.0",
         "features": ["adaptive_detection", "pattern_learning", "universal_recipe_support"],
         "selenium_available": selenium_available,
         "components": {
-            "chrome": bool(shutil.which('chromium') or shutil.which('chrome')) if 'shutil' in locals() else False,
-            "chromedriver": bool(shutil.which('chromedriver')) if 'shutil' in locals() else False
+            "chrome": bool(shutil.which('chromium') or shutil.which('chrome')),
+            "chromedriver": bool(shutil.which('chromedriver'))
         }
     }
 

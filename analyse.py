@@ -86,16 +86,7 @@ def save_website_patterns():
     except Exception as e:
         logger.error(f"Failed to save website patterns: {e}")
 
-# Gezondheidsscore per ingrediënt type
-HEALTH_SCORES = {
-    "asperges": 9, "sperziebonen": 8, "babyspinazie": 9, "radijsjes": 8, 
-    "peterselie": 8, "nectarines": 7, "granaatappelpitjes": 8, "doperwten": 8,
-    "munt": 8, "ricotta": 5, "pasta": 4, "couscous": 6, "feta": 5,
-    "knoflook": 8, "extra vierge olijfolie": 7, "milde olijfolie": 6,
-    "wittewijnazijn": 6, "water": 10, "orzo pasta": 4, "afbakciabatta": 3,
-    "burrata": 4, "ui": 7, "uien": 7, "tomaat": 8, "tomaten": 8,
-    "paprika": 8, "courgette": 8, "wortel": 8, "aardappel": 6
-}
+
 
 def get_domain(url: str) -> str:
     """Extract domain from URL"""
@@ -114,7 +105,7 @@ def get_random_user_agent():
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
     ]
-    return random.choice(user_agents))
+    return random.choice(user_agents)
 
 def setup_selenium_driver():
     """Setup Selenium Chrome driver with options optimized for Replit"""
@@ -514,11 +505,6 @@ def is_likely_ingredient(text):
     ]
 
     has_common_ingredient = any(ingredient in text_lower for ingredient in common_ingredients)
-    
-    return has_quantity or has_common_ingredient
-    ]
-
-    has_common_ingredient = any(ingredient in text_lower for ingredient in common_ingredients)
 
     # Niet teveel cijfers
     digit_ratio = sum(c.isdigit() for c in text) / len(text)
@@ -777,10 +763,6 @@ def get_nutrition_data(ingredient_name):
 
         if data.get('products') and len(data['products']) > 0:
             product = data['products'][0]
-            return product.get('nutriments', {})
-    except:
-        pass
-    return Noneta['products'][0]
             nutriments = product.get('nutriments', {})
 
             return {
@@ -906,8 +888,6 @@ def get_health_score(ingredient_name):
         return api_score
     
     # Default score if nothing found
-    return 5core
-
     return CONFIG.get("health_scoring", {}).get("default_unknown_score", 5)
 
 def calculate_health_goals_scores(total_nutrition):
