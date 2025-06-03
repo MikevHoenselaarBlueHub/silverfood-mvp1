@@ -187,8 +187,67 @@ def selenium_scrape_ingredients(url: str):
 
         logger.info(f"Using Selenium for {url}")
 
-        # Set page load timeout
+        # Set page load timeout and get page
+        driver.set_page_load_timeout(30)
+        driver.implicitly_wait(10)
 
+        try:
+            driver.get(url)
+            WebDriverWait(driver, 15).until(
+                EC.presence_of_element_located((By.TAG_NAME, "body"))
+            )
+        except TimeoutException:
+            logger.warning("Page load timeout, continuing anyway")
+
+        # Wait for dynamic content
+        time.sleep(3)
+
+        # Get page source
+        html = driver.page_source
+        title = driver.title or "Recept"
+        
+        soup = BeautifulSoup(html, 'html.parser')
+        domain = get_domain(url)
+        ingredients = []
+
+        # Try domain-specific and generic selectors
+        all_selectors = [
+            # Domain specific
+            '.recipe-ingredients-ingredient-list_name__YX7Rl',
+            '[data-testhook="ingredients"] td:last-child p',
+            '.ingredient-line', '.ingredients-list li',
+            # Generic
+            '[class*="ingredient"]', '.ingredient', '.ingredients li',
+            'ul li', 'ol li', 'table td'
+        ]
+
+        for selector in all_selectors:
+            try:
+                elements = soup.select(selector)
+                for elem in elements:
+                    text = elem.get_text(strip=True)
+                    if text and is_likely_ingredient(text):
+                        clean_text = clean_ingredient_text(text)
+                        if clean_text and clean_text not in ingredients:
+                            ingredients.append(clean_text)
+
+                if len(ingredients) >= 5:
+                    logger.info(f"Selenium success with selector: {selector}")
+                    break
+            except Exception:
+                continue
+
+        return ingredients[:20], title
+
+    except Exception as e:
+        logger.error(f"Selenium scraping failed: {e}")
+        return [], ""
+    finally:
+        if driver:
+            try:
+                driver.quit()
+            except:
+                pass
 
 def save_website_patterns():
     """Save learned patterns to file"""

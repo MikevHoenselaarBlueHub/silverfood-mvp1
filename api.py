@@ -9,6 +9,8 @@ import logging
 import json
 from analyse import analyse
 from urllib.parse import urlparse
+from chrome_extension_api import setup_chrome_extension_api
+from debug_helper import debug
 
 # Laad configuratie
 try:
@@ -44,6 +46,9 @@ app.add_middleware(
     allow_methods=["GET"],
     allow_headers=["*"],
 )
+
+# Setup Chrome extension API
+setup_chrome_extension_api(app)
 
 # Rate limiting
 request_history = {}
@@ -222,7 +227,7 @@ async def health_check():
         pass
     
     import shutil
-        return {
+    return {
         "status": "healthy", 
         "message": "Silverfood API is actief",
         "version": "3.1.0",

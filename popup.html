@@ -1,0 +1,143 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body {
+            width: 350px;
+            min-height: 400px;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .header {
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        
+        .logo {
+            width: 120px;
+            height: auto;
+            margin-bottom: 5px;
+        }
+        
+        .content {
+            padding: 20px;
+        }
+        
+        .health-score {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        
+        .score-circle {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        
+        .score-excellent { background: #4CAF50; }
+        .score-good { background: #FFC107; color: #333; }
+        .score-fair { background: #FF9800; }
+        .score-poor { background: #F44336; }
+        
+        .suggestions {
+            margin-top: 15px;
+        }
+        
+        .suggestion-item {
+            background: rgba(255,255,255,0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        
+        .button {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .button:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px 20px;
+        }
+        
+        .error {
+            color: #ffcccb;
+            text-align: center;
+            padding: 20px;
+        }
+        
+        .no-recipe {
+            text-align: center;
+            padding: 20px;
+            opacity: 0.8;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <img src="https://www.silverfooduniversum.nl/wp-content/uploads/2022/03/silverfooduniversum-logo-white.png" 
+             alt="Silverfood" class="logo">
+        <h3 style="margin: 0;">Recipe Analyzer</h3>
+    </div>
+    
+    <div id="loading" class="loading">
+        <div>🔍 Analyzing recipe...</div>
+    </div>
+    
+    <div id="no-recipe" class="no-recipe" style="display: none;">
+        <div>📄 No recipe detected on this page</div>
+        <button class="button" id="manual-analyze">Try Manual Analysis</button>
+    </div>
+    
+    <div id="error" class="error" style="display: none;">
+        <div id="error-message">Error occurred</div>
+        <button class="button" id="retry">Try Again</button>
+    </div>
+    
+    <div id="results" class="content" style="display: none;">
+        <div class="health-score">
+            <div id="score-circle" class="score-circle">
+                <span id="score-value">0</span>
+            </div>
+            <div id="score-text">Health Score</div>
+        </div>
+        
+        <div id="summary"></div>
+        
+        <div class="suggestions">
+            <h4>💡 Suggestions:</h4>
+            <div id="suggestions-list"></div>
+        </div>
+        
+        <button class="button" id="view-full">View Full Analysis</button>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>
