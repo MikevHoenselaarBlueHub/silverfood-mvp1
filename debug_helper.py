@@ -37,7 +37,7 @@ class DebugHelper:
     def log_response(self, response, timing: float = None):
         """Log HTTP response details"""
         if hasattr(response, 'status_code'):
-            self.logger.debug(f"RESPONSE: {response.status_code} ({timing:.2f}s if timing else 'N/A'})")
+            self.logger.debug(f"RESPONSE: {response.status_code} ({timing:.2f}s)" if timing else f"RESPONSE: {response.status_code} (N/A)")
             self.logger.debug(f"Content-Type: {response.headers.get('content-type', 'unknown')}")
             if self.enable_debug:
                 self.logger.debug(f"Response size: {len(response.content)} bytes")

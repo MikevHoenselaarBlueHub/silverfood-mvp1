@@ -1,196 +1,418 @@
-import json, re, time, os, random
-import requests
+
+"""
+Silverfood Recipe Analysis Module
+=================================
+
+This module provides comprehensive recipe analysis functionality with adaptive ingredient detection,
+health scoring, and nutrition calculation. It supports all major recipe websites through intelligent
+pattern recognition and Selenium fallback for dynamic content.
+
+Features:
+    - Universal recipe website support through adaptive pattern detection
+    - Intelligent ingredient extraction with fuzzy matching
+    - Health scoring based on nutrition data and predefined scores
+    - Nutrition calculation using OpenFoodFacts API
+    - Website pattern learning and caching
+    - Chrome extension compatibility
+    - Rate limiting and error handling
+
+Dependencies:
+    - requests: HTTP requests for web scraping
+    - beautifulsoup4: HTML parsing
+    - selenium: Dynamic content scraping
+    - rapidfuzz: Fuzzy string matching
+    - json: Configuration and data handling
+
+Author: Silverfood Team
+Version: 3.1.0
+License: MIT
+"""
+
+import json
+import re
+import time
+import os
+import random
+import logging
+import shutil
+from typing import Dict, List, Tuple, Optional, Any, Union
 from urllib.parse import urlparse
+
+import requests
 from bs4 import BeautifulSoup
 from rapidfuzz import process, fuzz
-import logging
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
+# Selenium imports with error handling
+try:
+    from selenium import webdriver
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.chrome.service import Service
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
+    from selenium.common.exceptions import TimeoutException, WebDriverException
+    SELENIUM_AVAILABLE = True
+except ImportError:
+    SELENIUM_AVAILABLE = False
+    logging.warning("Selenium not available - fallback to requests only")
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
-# Load config file
-with open("config.json", encoding="utf-8") as f:
-    CONFIG = json.load(f)
+# Load configuration files
+try:
+    with open("config.json", encoding="utf-8") as f:
+        CONFIG = json.load(f)
+    logger.info("Configuration loaded successfully")
+except FileNotFoundError:
+    CONFIG = {
+        "health_scoring": {"default_unknown_score": 5},
+        "api": {"rate_limit_requests": 8, "rate_limit_window_seconds": 60},
+        "ui": {"max_url_length": 500}
+    }
+    logger.warning("Config file not found, using defaults")
 
-# Laad vervanglijst
-with open("substitutions.json", encoding="utf-8") as f:
-    SUBS = json.load(f)
+try:
+    with open("substitutions.json", encoding="utf-8") as f:
+        SUBSTITUTIONS = json.load(f)
+    logger.info("Substitutions database loaded successfully")
+except FileNotFoundError:
+    SUBSTITUTIONS = {}
+    logger.warning("Substitutions file not found")
 
 # Website patterns cache
 WEBSITE_PATTERNS_FILE = "website_patterns.json"
-
 try:
     with open(WEBSITE_PATTERNS_FILE, encoding="utf-8") as f:
         WEBSITE_PATTERNS = json.load(f)
+    logger.info(f"Loaded {len(WEBSITE_PATTERNS)} website patterns")
 except FileNotFoundError:
     WEBSITE_PATTERNS = {}
+    logger.info("No existing website patterns found, starting fresh")
 
-# Health scores database
+# Health scores database for common ingredients
 HEALTH_SCORES = {
+    # Vegetables (7-9)
     'ui': 7, 'uien': 7, 'tomaat': 8, 'tomaten': 8, 'paprika': 8,
-    'courgette': 8, 'wortel': 9, 'aardappel': 6, 'rijst': 5,
-    'pasta': 4, 'knoflook': 8, 'peterselie': 9, 'basilicum': 9,
-    'olie': 3, 'boter': 2, 'kaas': 4, 'vlees': 5, 'kip': 6,
-    'vis': 8, 'melk': 5, 'room': 3, 'ei': 6, 'eieren': 6,
-    'bloem': 3, 'suiker': 1, 'azijn': 6, 'couscous': 5,
-    'feta': 4, 'ricotta': 5, 'burrata': 4, 'asperges': 9,
-    'nectarine': 8, 'doperwten': 8
-}
-
-def calculate_health_score_from_nutrition(nutrition_data):
-    """Calculate health score from nutrition data"""
-    score = 5  # Default
+    'courgette': 8, 'wortel': 9, 'aardappel': 6, 'spinazie': 9,
+    'sla': 8, 'rucola': 8, 'andijvie': 8, 'broccoli': 9,
+    'bloemkool': 8, 'prei': 7, 'asperges': 9, 'doperwten': 8,
     
-    # Adjust based on nutrition facts
-    if 'fat_100g' in nutrition_data:
-        fat = nutrition_data['fat_100g']
-        if fat > 20:
-            score -= 2
-        elif fat < 5:
-            score += 1
-            
-    if 'sugars_100g' in nutrition_data:
-        sugar = nutrition_data['sugars_100g']
-        if sugar > 15:
-            score -= 2
-        elif sugar < 5:
-            score += 1
-            
-    if 'fiber_100g' in nutrition_data:
-        fiber = nutrition_data['fiber_100g']
-        if fiber > 5:
-            score += 2
-            
-    if 'salt_100g' in nutrition_data:
-        salt = nutrition_data['salt_100g']
-        if salt > 1.5:
-            score -= 1
-            
-    nova_penalty = {4: -2, 3: -1, 2: 0, 1: 1}
-    score += nova_penalty.get(nutrition_data.get('nova_group'), 0)
-
-    return max(1, min(10, score))
-
-def save_website_patterns():
-    """Sla website patterns op naar bestand"""
-    try:
-        with open(WEBSITE_PATTERNS_FILE, 'w', encoding="utf-8") as f:
-            json.dump(WEBSITE_PATTERNS, f, indent=2, ensure_ascii=False)
-    except Exception as e:
-        logger.error(f"Failed to save website patterns: {e}")
-
+    # Herbs and spices (8-9)
+    'knoflook': 8, 'peterselie': 9, 'basilicum': 9, 'oregano': 8,
+    'tijm': 8, 'rozemarijn': 8, 'munt': 8, 'dille': 8,
+    
+    # Grains and starches (4-6)
+    'rijst': 5, 'pasta': 4, 'couscous': 5, 'quinoa': 7,
+    'haver': 6, 'bloem': 3, 'brood': 4,
+    
+    # Proteins (5-8)
+    'vlees': 5, 'kip': 6, 'vis': 8, 'zalm': 8, 'tonijn': 7,
+    'ei': 6, 'eieren': 6, 'bonen': 7, 'linzen': 8,
+    
+    # Dairy (3-5)
+    'melk': 5, 'room': 3, 'boter': 2, 'kaas': 4, 'yoghurt': 6,
+    'feta': 4, 'ricotta': 5, 'burrata': 4,
+    
+    # Fruits (7-8)
+    'appel': 8, 'banaan': 7, 'citroen': 8, 'limoen': 8,
+    'nectarine': 8, 'perzik': 8, 'aardbei': 8,
+    
+    # Fats and oils (2-7)
+    'olie': 3, 'olijfolie': 7, 'extra vierge olijfolie': 7,
+    'zonnebloemolie': 3, 'boter': 2, 'margarine': 2,
+    
+    # Condiments and seasonings (1-6)
+    'suiker': 1, 'zout': 2, 'peper': 6, 'azijn': 6,
+    'wittewijnazijn': 6, 'balsamico': 5,
+    
+    # Nuts and seeds (6-8)
+    'noten': 7, 'amandelen': 8, 'walnoten': 8, 'pijnboompitten': 7,
+    'zonnebloempitten': 7, 'sesamzaad': 7
+}
 
 
 def get_domain(url: str) -> str:
-    """Extract domain from URL"""
+    """
+    Extract domain from URL for pattern matching.
+    
+    Args:
+        url (str): The URL to extract domain from
+        
+    Returns:
+        str: Clean domain name without www prefix
+        
+    Example:
+        >>> get_domain("https://www.example.com/recipe")
+        'example.com'
+    """
     try:
         parsed = urlparse(url.lower())
         domain = parsed.netloc.replace('www.', '')
+        logger.debug(f"Extracted domain: {domain} from {url}")
         return domain
-    except:
+    except Exception as e:
+        logger.error(f"Failed to extract domain from {url}: {e}")
         return ""
 
-def get_random_user_agent():
-    """Get random user agent to avoid detection"""
+
+def get_random_user_agent() -> str:
+    """
+    Get a random user agent string to avoid detection.
+    
+    Returns:
+        str: Random user agent string
+        
+    Note:
+        Rotates between common browser user agents to appear more human-like
+    """
     user_agents = [
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
         'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15'
     ]
-    return random.choice(user_agents)
+    selected_agent = random.choice(user_agents)
+    logger.debug(f"Selected user agent: {selected_agent[:50]}...")
+    return selected_agent
 
-def setup_selenium_driver():
-    """Setup Selenium Chrome driver with options optimized for Replit"""
+
+def setup_selenium_driver() -> Optional[webdriver.Chrome]:
+    """
+    Setup Selenium Chrome driver with anti-detection options.
+    
+    Returns:
+        Optional[webdriver.Chrome]: Configured Chrome driver or None if setup fails
+        
+    Note:
+        Optimized for Replit/Nix environment with comprehensive anti-detection measures
+    """
+    if not SELENIUM_AVAILABLE:
+        logger.error("Selenium not available")
+        return None
+        
     try:
         chrome_options = Options()
-
-        # Replit specific Chrome setup
-        chrome_options.add_argument('--headless=new')  # Use new headless mode
+        
+        # Replit/container optimizations
+        chrome_options.add_argument('--headless=new')
         chrome_options.add_argument('--no-sandbox')
         chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--disable-gpu')
         chrome_options.add_argument('--disable-web-security')
         chrome_options.add_argument('--disable-features=VizDisplayCompositor')
         chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--disable-extensions')
-        chrome_options.add_argument('--disable-background-timer-throttling')
-        chrome_options.add_argument('--disable-backgrounding-occluded-windows')
-        chrome_options.add_argument('--disable-renderer-backgrounding')
-        chrome_options.add_argument('--disable-features=TranslateUI')
-        chrome_options.add_argument('--disable-ipc-flooding-protection')
-        chrome_options.add_argument('--force-device-scale-factor=1')
-        chrome_options.add_argument('--single-process')  # Better for containers
+        chrome_options.add_argument('--single-process')
         chrome_options.add_argument('--disable-background-networking')
         chrome_options.add_argument('--disable-default-apps')
         chrome_options.add_argument('--disable-sync')
         chrome_options.add_argument('--no-first-run')
+        
+        # Anti-detection measures
         chrome_options.add_argument(f'--user-agent={get_random_user_agent()}')
         chrome_options.add_argument('--disable-blink-features=AutomationControlled')
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option('useAutomationExtension', False)
-
-        # Set Chrome binary location for Replit/Nix
-        import shutil
+        
+        # Find Chrome binary
         chrome_binary = shutil.which('chromium') or shutil.which('chrome') or shutil.which('google-chrome')
         if chrome_binary:
             chrome_options.binary_location = chrome_binary
             logger.info(f"Chrome binary found at: {chrome_binary}")
         else:
             logger.warning("Chrome binary not found in PATH")
-
-        # Try to find ChromeDriver
+        
+        # Find ChromeDriver
         chromedriver_path = shutil.which('chromedriver')
-
-        driver = None
-        try:
-            if chromedriver_path:
-                from selenium.webdriver.chrome.service import Service
-                service = Service(chromedriver_path)
-                driver = webdriver.Chrome(service=service, options=chrome_options)
-                logger.info(f"ChromeDriver found at: {chromedriver_path}")
-            else:
-                # Fallback: try without explicit service
-                driver = webdriver.Chrome(options=chrome_options)
-                logger.info("Using default ChromeDriver")
-
-            # Anti-detection measures
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            driver.execute_cdp_cmd('Network.setUserAgentOverride', {
-                "userAgent": get_random_user_agent()
-            })
-
-            return driver
-
-        except Exception as e:
-            logger.error(f"Failed to initialize Chrome driver: {e}")
-            return None
-
+        
+        if chromedriver_path:
+            service = Service(chromedriver_path)
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+            logger.info(f"ChromeDriver found at: {chromedriver_path}")
+        else:
+            driver = webdriver.Chrome(options=chrome_options)
+            logger.info("Using default ChromeDriver")
+        
+        # Additional anti-detection
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        driver.execute_cdp_cmd('Network.setUserAgentOverride', {
+            "userAgent": get_random_user_agent()
+        })
+        
+        logger.info("Selenium driver setup successful")
+        return driver
+        
     except Exception as e:
         logger.error(f"Failed to setup Selenium driver: {e}")
         return None
 
-def selenium_scrape_ingredients(url: str):
-    """Scrape ingredients using Selenium for dynamic content"""
+
+def save_website_patterns() -> None:
+    """
+    Save learned website patterns to file for future use.
+    
+    Note:
+        Patterns are automatically learned and saved when successful selectors are found
+    """
+    try:
+        with open(WEBSITE_PATTERNS_FILE, 'w', encoding="utf-8") as f:
+            json.dump(WEBSITE_PATTERNS, f, indent=2, ensure_ascii=False)
+        logger.debug(f"Saved {len(WEBSITE_PATTERNS)} website patterns")
+    except Exception as e:
+        logger.error(f"Failed to save website patterns: {e}")
+
+
+def clean_ingredient_text(text: str) -> Optional[str]:
+    """
+    Clean and normalize ingredient text by removing quantities and formatting.
+    
+    Args:
+        text (str): Raw ingredient text from webpage
+        
+    Returns:
+        Optional[str]: Cleaned ingredient name or None if invalid
+        
+    Example:
+        >>> clean_ingredient_text("200 gram tomaten, in blokjes")
+        'tomaten'
+    """
+    if not text:
+        return None
+    
+    # Handle encoding issues
+    if isinstance(text, bytes):
+        try:
+            text = text.decode('utf-8', errors='ignore')
+        except:
+            try:
+                text = text.decode('latin-1', errors='ignore')
+            except:
+                return None
+    
+    # Remove non-printable characters
+    text = ''.join(char for char in text if char.isprintable() or char.isspace())
+    
+    # Filter out garbled text
+    if any(ord(char) > 1000 for char in text):
+        return None
+    
+    # Check for control characters
+    if any(ord(char) < 32 and char not in '\t\n\r' for char in text):
+        return None
+    
+    # Check for reasonable text composition
+    if len(text) > 0:
+        alpha_ratio = sum(c.isalpha() or c.isspace() or c in ',-().' for c in text) / len(text)
+        if alpha_ratio < 0.5:
+            return None
+    
+    # Remove leading quantities and measurements
+    text = re.sub(r'^\d+\s*[.,]?\s*', '', text)
+    text = re.sub(r'^\d+\s*(gram|g|ml|eetlepel|el|theelepel|tl|stuks?|teen|liter|l|kopje|blik)\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'^[\W\d\s]*', '', text)
+    
+    # Remove trailing quantities in parentheses
+    text = re.sub(r'\s*\(\d+.*?\)$', '', text)
+    
+    # Remove common descriptors
+    text = re.sub(r',?\s*(fijngehakt|grof gehakt|in blokjes|gesneden|geraspt).*$', '', text, flags=re.IGNORECASE)
+    
+    text = text.strip()
+    
+    # Minimum length check
+    if len(text) < 3:
+        return None
+    
+    logger.debug(f"Cleaned ingredient: '{text}'")
+    return text
+
+
+def is_likely_ingredient(text: str) -> bool:
+    """
+    Determine if text is likely an ingredient based on content analysis.
+    
+    Args:
+        text (str): Text to analyze
+        
+    Returns:
+        bool: True if text appears to be an ingredient
+        
+    Note:
+        Uses multiple heuristics including quantity indicators, common ingredients,
+        and exclusion patterns
+    """
+    if not text or len(text) < 3 or len(text) > 100:
+        return False
+    
+    text_lower = text.lower()
+    
+    # Skip obvious non-ingredients
+    skip_words = [
+        'recept', 'stap', 'bereiding', 'instructie', 'minuten', 'uur',
+        'serveren', 'bakken', 'koken', 'snijden', 'mixen', 'roeren',
+        'toevoegen', 'verhitten', 'laten', 'bereidingstijd', 'porties',
+        'moeilijkheid', 'voorbereiding', 'ingrediënten', 'benodigdheden',
+        'tips', 'variaties', 'reviews', 'rating', 'sterren'
+    ]
+    
+    if any(skip in text_lower for skip in skip_words):
+        return False
+    
+    # Check for quantity indicators
+    quantity_indicators = [
+        'gram', 'g ', 'ml', 'liter', 'l ', 'eetlepel', 'el', 'theelepel', 'tl',
+        'stuks', 'stuk', 'teen', 'teentje', 'kopje', 'blik', 'pak', 'zakje'
+    ]
+    has_quantity = any(indicator in text_lower for indicator in quantity_indicators)
+    
+    # Check for common ingredients
+    common_ingredients = list(HEALTH_SCORES.keys())
+    has_common_ingredient = any(ingredient in text_lower for ingredient in common_ingredients)
+    
+    # Check digit ratio
+    digit_ratio = sum(c.isdigit() for c in text) / len(text) if text else 0
+    
+    # Check for HTML/URL content
+    has_html = '<' in text or 'http' in text
+    
+    result = (has_quantity or has_common_ingredient) and digit_ratio < 0.3 and not has_html
+    logger.debug(f"Ingredient check for '{text[:30]}...': {result}")
+    return result
+
+
+def selenium_scrape_ingredients(url: str) -> Tuple[List[str], str]:
+    """
+    Scrape ingredients using Selenium for dynamic content.
+    
+    Args:
+        url (str): URL to scrape
+        
+    Returns:
+        Tuple[List[str], str]: (ingredients list, page title)
+        
+    Note:
+        Used as fallback when requests-based scraping fails
+    """
+    if not SELENIUM_AVAILABLE:
+        logger.warning("Selenium not available for dynamic scraping")
+        return [], ""
+    
     driver = None
     try:
         driver = setup_selenium_driver()
         if not driver:
             return [], ""
-
+        
         logger.info(f"Using Selenium for {url}")
-
-        # Set page load timeout and get page
+        
+        # Load page with timeout
         driver.set_page_load_timeout(30)
         driver.implicitly_wait(10)
-
+        
         try:
             driver.get(url)
             WebDriverWait(driver, 15).until(
@@ -198,20 +420,20 @@ def selenium_scrape_ingredients(url: str):
             )
         except TimeoutException:
             logger.warning("Page load timeout, continuing anyway")
-
+        
         # Wait for dynamic content
         time.sleep(3)
-
-        # Get page source
+        
+        # Get page data
         html = driver.page_source
         title = driver.title or "Recept"
         
         soup = BeautifulSoup(html, 'html.parser')
         domain = get_domain(url)
         ingredients = []
-
-        # Try domain-specific and generic selectors
-        all_selectors = [
+        
+        # Try multiple selector strategies
+        selectors = [
             # Domain specific
             '.recipe-ingredients-ingredient-list_name__YX7Rl',
             '[data-testhook="ingredients"] td:last-child p',
@@ -220,8 +442,8 @@ def selenium_scrape_ingredients(url: str):
             '[class*="ingredient"]', '.ingredient', '.ingredients li',
             'ul li', 'ol li', 'table td'
         ]
-
-        for selector in all_selectors:
+        
+        for selector in selectors:
             try:
                 elements = soup.select(selector)
                 for elem in elements:
@@ -230,15 +452,15 @@ def selenium_scrape_ingredients(url: str):
                         clean_text = clean_ingredient_text(text)
                         if clean_text and clean_text not in ingredients:
                             ingredients.append(clean_text)
-
+                
                 if len(ingredients) >= 5:
                     logger.info(f"Selenium success with selector: {selector}")
                     break
             except Exception:
                 continue
-
+        
         return ingredients[:20], title
-
+        
     except Exception as e:
         logger.error(f"Selenium scraping failed: {e}")
         return [], ""
@@ -249,82 +471,21 @@ def selenium_scrape_ingredients(url: str):
             except:
                 pass
 
-def save_website_patterns():
-    """Save learned patterns to file"""
-    try:
-        with open(WEBSITE_PATTERNS_FILE, 'w', encoding='utf-8') as f:
-            json.dump(WEBSITE_PATTERNS, f, ensure_ascii=False, indent=2)
-    except Exception as e:
-        logger.error(f"Failed to save patterns: {e}")
 
-def get_driver():
-    """Create a Chrome WebDriver instance"""
-    options = Options()
-    options.add_argument('--headless')
-    options.add_argument('--no-sandbox')
-    options.add_argument('--disable-dev-shm-usage')
-    options.add_argument('--disable-gpu')
-    options.add_argument('--window-size=1920,1080')
-    options.add_argument(f'--user-agent={get_random_user_agent()}')
+def extract_ingredients_from_soup(soup: BeautifulSoup, domain: str) -> List[str]:
+    """
+    Extract ingredients from BeautifulSoup object using known patterns.
     
-    try:
-        driver = webdriver.Chrome(options=options)
-        driver.set_page_load_timeout(30)
-        return driver
-    except Exception as e:
-        logger.error(f"Failed to create driver: {e}")
-        return None
-
-def analyse(url):
-    """Main analysis function"""
-    try:
-        # Parse domain
-        domain = urlparse(url).netloc.replace('www.', '')
+    Args:
+        soup (BeautifulSoup): Parsed HTML content
+        domain (str): Website domain for pattern matching
         
-        # Try to get page with requests first
-        headers = {'User-Agent': get_random_user_agent()}
-        response = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.content, 'html.parser')
+    Returns:
+        List[str]: List of found ingredients
         
-        # Extract ingredients using various methods
-        ingredients = extract_ingredients_from_soup(soup, domain)
-        
-        if not ingredients:
-            # Try with Selenium if requests failed
-            driver = get_driver()
-            if driver:
-                try:
-                    driver.get(url)
-                    WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-                    soup = BeautifulSoup(driver.page_source, 'html.parser')
-                    ingredients = extract_ingredients_from_soup(soup, domain)
-                finally:
-                    driver.quit()
-        
-        if not ingredients:
-            raise Exception("Geen ingrediënten gevonden op deze pagina")
-            
-        # Calculate health scores
-        ingredient_data = []
-        for ingredient in ingredients:
-            health_score = get_health_score(ingredient)
-            ingredient_data.append({
-                'name': ingredient,
-                'health_score': health_score
-            })
-        
-        return {
-            'ingredients': ingredient_data,
-            'total_ingredients': len(ingredient_data),
-            'average_health_score': sum(i['health_score'] for i in ingredient_data) / len(ingredient_data) if ingredient_data else 0
-        }
-        
-    except Exception as e:
-        logger.error(f"Analysis failed for {url}: {e}")
-        raise
-
-def extract_ingredients_from_soup(soup, domain):
-    """Extract ingredients from BeautifulSoup object"""
+    Note:
+        Uses cached patterns first, falls back to generic selectors
+    """
     ingredients = []
     
     # Try known patterns first
@@ -335,9 +496,12 @@ def extract_ingredients_from_soup(soup, domain):
             for element in elements:
                 text = element.get_text(strip=True)
                 if is_likely_ingredient(text):
-                    ingredients.append(text)
+                    clean_text = clean_ingredient_text(text)
+                    if clean_text and clean_text not in ingredients:
+                        ingredients.append(clean_text)
+        logger.info(f"Used cached pattern for {domain}: {len(ingredients)} ingredients")
     
-    # If no known patterns or no results, try generic selectors
+    # Generic selectors fallback
     if not ingredients:
         generic_selectors = [
             '.ingredient', '.ingredients li', '.recipe-ingredients li',
@@ -350,130 +514,48 @@ def extract_ingredients_from_soup(soup, domain):
             for element in elements:
                 text = element.get_text(strip=True)
                 if is_likely_ingredient(text):
-                    ingredients.append(text)
+                    clean_text = clean_ingredient_text(text)
+                    if clean_text and clean_text not in ingredients:
+                        ingredients.append(clean_text)
+            
             if ingredients:
                 # Save successful pattern
                 if domain not in WEBSITE_PATTERNS:
-                    WEBSITE_PATTERNS[domain] = {'ingredient_selectors': [selector], 'auto_detected': True, 'success_count': 1}
+                    WEBSITE_PATTERNS[domain] = {
+                        'ingredient_selectors': [selector],
+                        'auto_detected': True,
+                        'success_count': 1
+                    }
                     save_website_patterns()
+                    logger.info(f"Learned new pattern for {domain}: {selector}")
                 break
     
-    return ingredients[:20]  # Limit to 20 ingredients
+    return ingredients[:20]
+
+
+def smart_ingredient_scraping(url: str) -> Tuple[List[str], str]:
+    """
+    Intelligent ingredient scraping with multiple fallback strategies.
+    
+    Args:
+        url (str): URL to scrape ingredients from
         
-
-def clean_ingredient_text(text):
-    """Maak ingrediënt tekst schoon"""
-    if not text:
-        return None
-
-    # Fix encoding issues - handle different encodings
-    if isinstance(text, bytes):
-        try:
-            text = text.decode('utf-8', errors='ignore')
-        except:
-            try:
-                text = text.decode('latin-1', errors='ignore')
-            except:
-                return None
-
-    # Remove non-printable characters but keep basic punctuation
-    text = ''.join(char for char in text if char.isprintable() or char.isspace())
-
-    # Remove garbled text patterns - stricter check
-    if any(ord(char) > 1000 for char in text):
-        return None
-
-    # Check for control characters or weird encoding artifacts
-    if any(ord(char) < 32 and char not in '\t\n\r' for char in text):
-        return None
-
-    # Check for gibberish (too many non-alphabetic chars)
-    if len(text) > 0:
-        alpha_ratio = sum(c.isalpha() or c.isspace() or c in ',-().' for c in text) / len(text)
-        if alpha_ratio < 0.5:
-            return None
-
-    # Filter out obvious garbage text patterns
-    garbage_patterns = [
-        r'[]+',  # Common encoding artifacts
-        r'[\x00-\x1f\x7f-\x9f]+',  # Control characters
-        r'^[^a-zA-Z]*$',  # No letters at all
-        r'[^\w\s\-,().]+',  # Too many special chars
-    ]
-
-    for pattern in garbage_patterns:
-        if re.search(pattern, text):
-            return None
-
-    # Verwijder leading nummers en hoeveelheden
-    text = re.sub(r'^\d+\s*[.,]?\s*', '', text)
-    text = re.sub(r'^\d+\s*(gram|g|ml|eetlepel|el|theelepel|tl|stuks?|teen|liter|l|kopje|blik)\s*', '', text)
-    text = re.sub(r'^[\W\d\s]*', '', text)
-
-    # Verwijder trailing hoeveelheden
-    text = re.sub(r'\s*\(\d+.*?\)$', '', text)
-
-    text = text.strip()
-
-    # Minimale lengte check
-    if len(text) < 3:
-        return None
-
-    return text
-
-def is_likely_ingredient(text):
-    """Check of een tekst waarschijnlijk een ingrediënt is"""
-    if not text or len(text) < 3 or len(text) > 100:
-        return False
-
-    text_lower = text.lower()
-
-    # Skip common non-ingredients
-    skip_words = [
-        'recept', 'stap', 'bereiding', 'instructie', 'minuten', 'uur',
-        'serveren', 'bakken', 'koken', 'snijden', 'mixen', 'roeren',
-        'toevoegen', 'verhitten', 'laten', 'zout', 'peper', 'smaak',
-        'bereidingstijd', 'porties', 'moeilijkheid', 'voorbereiding',
-        'ingrediënten', 'benodigdheden', 'tips', 'variaties', 'reviews'
-    ]
-
-    if any(skip in text_lower for skip in skip_words):
-        return False
-
-    # Bevat hoeveelheid indicatoren
-    quantity_indicators = [
-        'gram', 'g ', 'ml', 'liter', 'l ', 'eetlepel', 'el', 'theelepel', 'tl',
-        'stuks', 'stuk', 'teen', 'teentje', 'kopje', 'blik', 'pak', 'zakje'
-    ]
-
-    has_quantity = any(indicator in text_lower for indicator in quantity_indicators)
-
-    # Bevat vaak voorkomende ingrediënt woorden
-    common_ingredients = [
-        'ui', 'uien', 'tomaat', 'tomaten', 'paprika', 'courgette', 'wortel',
-        'aardappel', 'rijst', 'pasta', 'knoflook', 'peterselie', 'basilicum',
-        'olie', 'boter', 'zout', 'peper', 'kaas', 'vlees', 'kip', 'vis',
-        'melk', 'room', 'ei', 'eieren', 'bloem', 'suiker', 'azijn', 'couscous',
-        'feta', 'ricotta', 'burrata', 'asperges', 'nectarine', 'doperwten'
-    ]
-
-    has_common_ingredient = any(ingredient in text_lower for ingredient in common_ingredients)
-
-    # Niet teveel cijfers
-    digit_ratio = sum(c.isdigit() for c in text) / len(text)
-
-    # Geen HTML/URL content
-    has_html = '<' in text or 'http' in text
-
-    return (has_quantity or has_common_ingredient) and digit_ratio < 0.3 and not has_html
-
-def smart_ingredient_scraping(url: str):
-    """Slimme ingrediënten scraping met Selenium fallback"""
-
-    # First try requests/BeautifulSoup (faster)
+    Returns:
+        Tuple[List[str], str]: (ingredients list, page title)
+        
+    Raises:
+        Exception: When no ingredients can be found after all attempts
+        
+    Note:
+        Primary function for ingredient extraction, tries requests first,
+        then Selenium, then pattern matching as fallbacks
+    """
     session = requests.Session()
-
-    # Rotate through different headers to avoid detection
+    domain = get_domain(url)
+    ingredients = []
+    title = "Recept"
+    
+    # Multiple header strategies for anti-detection
     headers_options = [
         {
             'User-Agent': get_random_user_agent(),
@@ -482,226 +564,103 @@ def smart_ingredient_scraping(url: str):
             'Accept-Encoding': 'gzip, deflate, br',
             'DNT': '1',
             'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'none'
+            'Upgrade-Insecure-Requests': '1'
         },
         {
             'User-Agent': get_random_user_agent(),
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.5',
             'Connection': 'keep-alive',
-            'Referer': 'https://www.google.com/',
-            'Cache-Control': 'no-cache'
+            'Referer': 'https://www.google.com/'
         }
     ]
-
-    domain = get_domain(url)
-    ingredients = []
-    title = "Recept"
-
-    # Try multiple approaches with requests first
+    
+    # Try requests-based scraping first
     for attempt, headers in enumerate(headers_options):
         try:
             logger.info(f"Requests attempt {attempt + 1} for {url}")
-
+            
             session.headers.update(headers)
-            time.sleep(random.uniform(1, 3))  # Random delay
-
+            time.sleep(random.uniform(1, 3))
+            
             response = session.get(url, timeout=30, allow_redirects=True)
-
-            # Check for blocked/forbidden responses
+            
+            # Handle blocked responses
             if response.status_code == 403:
-                logger.warning(f"403 Forbidden - website blocking access")
+                logger.warning("403 Forbidden - website blocking access")
                 continue
             elif response.status_code == 429:
-                logger.warning(f"429 Rate limited - waiting longer")
+                logger.warning("429 Rate limited - waiting")
                 time.sleep(10)
                 continue
-
+            
             response.raise_for_status()
-
-            # Additional check for empty or invalid content
+            
             if len(response.content) < 100:
                 logger.warning(f"Response too short: {len(response.content)} bytes")
                 continue
-
+            
             soup = BeautifulSoup(response.content, 'html.parser')
-
-            # Find title
-            for title_selector in ['h1', 'title', '.recipe-title', '[class*="title"]', '[class*="recipe"]']:
+            
+            # Extract title
+            for title_selector in ['h1', 'title', '.recipe-title', '[class*="title"]']:
                 title_elem = soup.select_one(title_selector)
                 if title_elem and title_elem.get_text(strip=True):
                     title = title_elem.get_text(strip=True)
                     break
-
-            # Domain-specific selectors
-            domain_selectors = {
-                'ah.nl': [
-                    '.recipe-ingredients-ingredient-list_name__YX7Rl',
-                    '[data-testhook="ingredients"] td:last-child p',
-                    '[data-testhook="ingredients"] td',
-                    '.recipe-ingredients li'
-                ],
-                'jumbo.com': [
-                    '.ingredient-line',
-                    '.ingredients-list li',
-                    '.recipe-ingredient',
-                    '.jum-ingredient'
-                ],
-                'leukerecepten.nl': [
-                    '.recipe-ingredients li',
-                    '.ingredients li',
-                    '.ingredient-list li',
-                    '.recipe-content li'
-                ]
-            }
-
-            # Generic selectors for all sites
-            generic_selectors = [
-                '[class*="ingredient"]',
-                '[class*="recipe"] li',
-                'ul li',
-                'ol li',
-                'table td',
-                'table tr td:last-child',
-                '.ingredient',
-                '.ingredients li',
-                '[data-ingredient]',
-                '[itemtype*="ingredient"]',
-                '[class*="item"] span',
-                '.recipe-list li',
-                '.step li'
-            ]
-
-            # Use domain-specific selectors first
-            selectors_to_try = domain_selectors.get(domain, []) + generic_selectors
-
-            for selector in selectors_to_try:
-                try:
-                    elements = soup.select(selector)
-
-                    for elem in elements:
-                        text = elem.get_text(strip=True)
-                        if text and is_likely_ingredient(text):
-                            clean_text = clean_ingredient_text(text)
-                            if clean_text and clean_text not in ingredients:
-                                ingredients.append(clean_text)
-
-                    if len(ingredients) >= 5:
-                        logger.info(f"Requests success with selector: {selector} - Found {len(ingredients)} ingredients")
-                        break
-
-                except Exception:
-                    continue
-
-            # If we found enough ingredients, break
+            
+            # Extract ingredients
+            ingredients = extract_ingredients_from_soup(soup, domain)
+            
             if len(ingredients) >= 3:
-                logger.info(f"Requests successful scraping: {len(ingredients)} ingredients found")
+                logger.info(f"Requests successful: {len(ingredients)} ingredients found")
                 break
-
-            # Fallback: analyze all text content for ingredient patterns
-            if len(ingredients) < 3:
-                logger.info("Trying requests fallback text analysis")
-                all_text = soup.get_text()
-                lines = all_text.split('\n')
-
-                for line in lines:
-                    line = line.strip()
-                    if line and is_likely_ingredient(line):
-                        clean_text = clean_ingredient_text(line)
-                        if clean_text and clean_text not in ingredients:
-                            ingredients.append(clean_text)
-
-                if len(ingredients) >= 3:
-                    break
-
+                
         except requests.RequestException as e:
             logger.warning(f"Request failed on attempt {attempt + 1}: {e}")
-            time.sleep(5)  # Wait before retry
+            time.sleep(5)
             continue
         except Exception as e:
             logger.error(f"Unexpected error on attempt {attempt + 1}: {e}")
             continue
-
-    # If requests failed, try Selenium with retry logic
+    
+    # Selenium fallback
     if len(ingredients) < 3:
         logger.info("Requests failed, trying Selenium...")
-        max_selenium_retries = 2
-
-        for retry in range(max_selenium_retries):
-            try:
-                selenium_ingredients, selenium_title = selenium_scrape_ingredients(url)
-                if selenium_ingredients and len(selenium_ingredients) >= 3:
-                    ingredients = selenium_ingredients
-                    if selenium_title:
-                        title = selenium_title
-                    logger.info(f"Selenium successful: {len(ingredients)} ingredients found")
-                    break
-                else:
-                    logger.warning(f"Selenium attempt {retry + 1} failed to find sufficient ingredients")
-                    if retry < max_selenium_retries - 1:
-                        time.sleep(2)  # Wait before retry
-            except Exception as e:
-                logger.error(f"Selenium attempt {retry + 1} failed: {e}")
-                if retry < max_selenium_retries - 1:
-                    time.sleep(3)  # Wait before retry
-
-    # Final fallback: try to extract from meta data or structured data
+        selenium_ingredients, selenium_title = selenium_scrape_ingredients(url)
+        if selenium_ingredients and len(selenium_ingredients) >= 3:
+            ingredients = selenium_ingredients
+            if selenium_title:
+                title = selenium_title
+            logger.info(f"Selenium successful: {len(ingredients)} ingredients found")
+    
+    # Final validation
     if len(ingredients) < 3:
-        logger.info("Trying final fallback: structured data extraction")
-        try:
-            # Last attempt with most basic text analysis
-            fallback_ingredients = extract_ingredients_from_text(url)
-            if fallback_ingredients and len(fallback_ingredients) >= 3:
-                ingredients = fallback_ingredients
-                logger.info(f"Fallback successful: {len(ingredients)} ingredients found")
-            else:
-                # If still nothing, provide helpful error with specific site info
-                domain = get_domain(url)
-                if domain in ['ah.nl', 'jumbo.com']:
-                    raise Exception(f"Deze website ({domain}) blokkeert automatische toegang. Probeer de ingrediënten handmatig te kopiëren.")
-                else:
-                    raise Exception(f"Kon geen ingrediënten detecteren op {domain}. Dit kan zijn omdat de website een onbekende structuur gebruikt of toegang blokkeert.")
-        except Exception as fallback_error:
-            logger.error(f"All extraction methods failed: {fallback_error}")
-            raise Exception(f"Kon geen ingrediënten vinden op {url}. Website gebruikt mogelijk anti-bot bescherming of onbekende structuur.")
-
+        domain = get_domain(url)
+        if domain in ['ah.nl', 'jumbo.com']:
+            raise Exception(f"Deze website ({domain}) blokkeert automatische toegang. Probeer de ingrediënten handmatig te kopiëren.")
+        else:
+            raise Exception(f"Kon geen ingrediënten detecteren op {domain}. Website gebruikt mogelijk anti-bot bescherming.")
+    
+    logger.info(f"Scraping complete: {len(ingredients)} ingredients from {domain}")
     return ingredients, title
 
-def extract_ingredients_from_text(url):
-    """Last resort: basic text pattern matching for ingredients"""
+
+def get_nutrition_data(ingredient_name: str) -> Optional[Dict[str, Union[int, float]]]:
+    """
+    Fetch nutrition data from OpenFoodFacts API.
+    
+    Args:
+        ingredient_name (str): Name of ingredient to look up
+        
+    Returns:
+        Optional[Dict[str, Union[int, float]]]: Nutrition data or None if not found
+        
+    Note:
+        Returns comprehensive nutrition information per 100g including
+        calories, macronutrients, minerals, and NOVA processing group
+    """
     try:
-        import requests
-        response = requests.get(url, timeout=10, headers={'User-Agent': get_random_user_agent()})
-        text = response.text.lower()
-
-        # Look for common ingredient patterns in text
-        ingredient_patterns = [
-            r'(\d+\s*(?:gram|g|ml|eetlepel|el|theelepel|tl|kopje|blik|pak|zakje)\s+)([a-zA-Zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\s]{3,30})',
-            r'(\d+\s*)([a-zA-Zàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ\s]{3,30})\s*(?:gram|g|ml|eetlepel|el|theelepel|tl|kopje|blik|pak|zakje)',
-        ]
-
-        found_ingredients = []
-        for pattern in ingredient_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            for match in matches:
-                ingredient = match[1].strip() if len(match) > 1 else match[0].strip()
-                if ingredient and len(ingredient) > 2 and is_likely_ingredient(ingredient):
-                    clean_ingredient = clean_ingredient_text(ingredient)
-                    if clean_ingredient and clean_ingredient not in found_ingredients:
-                        found_ingredients.append(clean_ingredient)
-
-        return found_ingredients[:20]  # Limit to 20 ingredients
-    except:
-        return []
-
-def get_nutrition_data(ingredient_name):
-    """Haal voedingsdata op van OpenFoodFacts API"""
-    try:
-        # Search for product
         search_url = "https://world.openfoodfacts.org/cgi/search.pl"
         params = {
             'search_terms': ingredient_name,
@@ -710,15 +669,15 @@ def get_nutrition_data(ingredient_name):
             'json': 1,
             'page_size': 1
         }
-
+        
         response = requests.get(search_url, params=params, timeout=10)
         data = response.json()
-
+        
         if data.get('products') and len(data['products']) > 0:
             product = data['products'][0]
             nutriments = product.get('nutriments', {})
-
-            return {
+            
+            nutrition_data = {
                 'calories': nutriments.get('energy-kcal_100g', 0),
                 'fat': nutriments.get('fat_100g', 0),
                 'saturated_fat': nutriments.get('saturated-fat_100g', 0),
@@ -734,13 +693,248 @@ def get_nutrition_data(ingredient_name):
                 'iron': nutriments.get('iron_100g', 0),
                 'vitamin_c': nutriments.get('vitamin-c_100g', 0)
             }
+            
+            logger.debug(f"Retrieved nutrition data for {ingredient_name}")
+            return nutrition_data
+            
     except Exception as e:
         logger.warning(f"Failed to get nutrition data for {ingredient_name}: {e}")
-
+    
     return None
 
-def get_ingredient_health_facts(ingredient_name):
-    """Haal gezondheidsweetjes op voor een ingrediënt"""
+
+def calculate_health_score_from_nutrition(nutrition_data: Dict[str, Union[int, float]]) -> int:
+    """
+    Calculate health score based on nutrition data.
+    
+    Args:
+        nutrition_data (Dict[str, Union[int, float]]): Nutrition information
+        
+    Returns:
+        int: Health score from 1-10 (higher is healthier)
+        
+    Note:
+        Algorithm considers calories, fats, sugars, fiber, protein,
+        salt content, and food processing level (NOVA group)
+    """
+    if not nutrition_data:
+        return 5
+    
+    score = 10  # Start with perfect score
+    
+    # Penalty for high calories
+    if nutrition_data['calories'] > 300:
+        score -= 1
+    elif nutrition_data['calories'] > 500:
+        score -= 2
+    
+    # Penalty for high saturated fat
+    if nutrition_data['saturated_fat'] > 5:
+        score -= 1
+    elif nutrition_data['saturated_fat'] > 10:
+        score -= 2
+    
+    # Penalty for high sugar
+    if nutrition_data['sugar'] > 10:
+        score -= 1
+    elif nutrition_data['sugar'] > 20:
+        score -= 2
+    
+    # Penalty for high salt
+    if nutrition_data['salt'] > 1:
+        score -= 1
+    elif nutrition_data['salt'] > 2:
+        score -= 2
+    
+    # Bonus for high fiber
+    if nutrition_data['fiber'] > 3:
+        score += 1
+    
+    # Bonus for high protein
+    if nutrition_data['protein'] > 10:
+        score += 1
+    
+    # NOVA group penalty (higher = more processed)
+    nova_penalty = {1: 0, 2: -1, 3: -2, 4: -3}
+    score += nova_penalty.get(nutrition_data['nova_group'], -1)
+    
+    final_score = max(1, min(10, score))
+    logger.debug(f"Calculated health score: {final_score} from nutrition data")
+    return final_score
+
+
+def get_health_score(ingredient_name: str) -> int:
+    """
+    Get health score for an ingredient using multiple sources.
+    
+    Args:
+        ingredient_name (str): Name of ingredient
+        
+    Returns:
+        int: Health score from 1-10 (higher is healthier)
+        
+    Note:
+        Tries local database first, then fuzzy matching, then API lookup,
+        finally falls back to default score
+    """
+    ingredient_lower = ingredient_name.lower()
+    
+    # Direct lookup in local database
+    for key, score in HEALTH_SCORES.items():
+        if key in ingredient_lower:
+            logger.debug(f"Direct match for {ingredient_name}: {score}")
+            return score
+    
+    # Fuzzy matching
+    match = process.extractOne(
+        ingredient_lower, 
+        HEALTH_SCORES.keys(), 
+        scorer=fuzz.WRatio, 
+        score_cutoff=70
+    )
+    if match:
+        score = HEALTH_SCORES[match[0]]
+        logger.debug(f"Fuzzy match for {ingredient_name}: {score} (matched: {match[0]})")
+        return score
+    
+    # API lookup
+    nutrition_data = get_nutrition_data(ingredient_name)
+    if nutrition_data:
+        api_score = calculate_health_score_from_nutrition(nutrition_data)
+        logger.info(f"API score for {ingredient_name}: {api_score}")
+        return api_score
+    
+    # Default score
+    default_score = CONFIG.get("health_scoring", {}).get("default_unknown_score", 5)
+    logger.debug(f"Default score for {ingredient_name}: {default_score}")
+    return default_score
+
+
+def parse_quantity(line: str) -> Tuple[Optional[float], Optional[str], str]:
+    """
+    Parse quantity, unit, and ingredient name from ingredient line.
+    
+    Args:
+        line (str): Raw ingredient line from recipe
+        
+    Returns:
+        Tuple[Optional[float], Optional[str], str]: (amount, unit, ingredient_name)
+        
+    Example:
+        >>> parse_quantity("200 gram tomaten, in blokjes")
+        (200.0, 'gram', 'tomaten')
+    """
+    patterns = [
+        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s*(gram|g|ml|milliliter|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes)\s+(.*)",
+        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",
+        r"(\d+(?:[.,]\d+)?)\s+(.*)",
+        r"(een\s+(?:half|halve|kwart|hele)?)\s+(.*)",
+        r"(½|¼|¾|⅓|⅔|⅛)\s+(.*)",
+    ]
+    
+    line_lower = line.lower().strip()
+    
+    for pattern in patterns:
+        m = re.match(pattern, line_lower)
+        if m:
+            amount_str = m.group(1)
+            
+            # Handle special cases
+            if 'een half' in amount_str or 'halve' in amount_str:
+                amount = 0.5
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            elif '½' in amount_str:
+                amount = 0.5
+                unit = 'stuks'
+                name = m.group(2) if len(m.groups()) >= 2 else ''
+            else:
+                try:
+                    amount_clean = amount_str.replace(',', '.')
+                    if '-' in amount_clean or '/' in amount_clean:
+                        nums = re.findall(r'\d+(?:\.\d+)?', amount_clean)
+                        if len(nums) >= 2:
+                            amount = (float(nums[0]) + float(nums[1])) / 2
+                        else:
+                            amount = float(nums[0]) if nums else 1
+                    else:
+                        amount = float(amount_clean)
+                except:
+                    amount = 1
+                
+                if len(m.groups()) >= 3:
+                    unit = m.group(2)
+                    name = m.group(3).strip()
+                elif len(m.groups()) >= 2:
+                    if pattern == patterns[1]:
+                        name = m.group(2).strip()
+                        unit = m.group(3) if len(m.groups()) >= 3 else 'stuks'
+                    else:
+                        unit = 'stuks'
+                        name = m.group(2).strip()
+                else:
+                    unit = 'stuks'
+                    name = line_lower.strip()
+            
+            # Normalize units
+            unit_mapping = {
+                'g': 'gram', 'ml': 'milliliter', 'l': 'liter',
+                'el': 'eetlepel', 'eetlepels': 'eetlepel',
+                'tl': 'theelepel', 'theelepels': 'theelepel',
+                'st': 'stuks', 'stuks': 'stuks', 'stuk': 'stuks',
+                'teen': 'teentje', 'teentjes': 'teentje'
+            }
+            
+            unit = unit_mapping.get(unit, unit)
+            
+            logger.debug(f"Parsed quantity: {amount} {unit} {name}")
+            return amount, unit, name
+    
+    # No pattern matched
+    return None, None, line.lower().strip()
+
+
+def find_substitution(ingredient_name: str) -> Optional[str]:
+    """
+    Find healthier substitution for ingredient.
+    
+    Args:
+        ingredient_name (str): Name of ingredient to substitute
+        
+    Returns:
+        Optional[str]: Suggested substitution or None if none found
+        
+    Note:
+        Uses fuzzy matching against substitutions database
+    """
+    match = process.extractOne(
+        ingredient_name.lower(), 
+        SUBSTITUTIONS.keys(), 
+        scorer=fuzz.WRatio, 
+        score_cutoff=85
+    )
+    
+    if match:
+        substitution = SUBSTITUTIONS[match[0]]
+        logger.debug(f"Found substitution for {ingredient_name}: {substitution}")
+        return substitution
+    
+    return None
+
+
+def get_ingredient_health_facts(ingredient_name: str) -> str:
+    """
+    Get health facts and benefits for an ingredient.
+    
+    Args:
+        ingredient_name (str): Name of ingredient
+        
+    Returns:
+        str: Health fact or benefit description
+        
+    Note:
+        Provides educational information about ingredient health benefits
+    """
     health_facts = {
         'tomaat': "Tomaten zijn rijk aan lycopeen, een krachtige antioxidant die het risico op hartziekten kan verlagen.",
         'ui': "Uien bevatten quercetine, een flavonoïde die ontstekingsremmende eigenschappen heeft.",
@@ -753,10 +947,7 @@ def get_ingredient_health_facts(ingredient_name):
         'avocado': "Avocado's bevatten gezonde enkelvoudig onverzadigde vetten die goed zijn voor het hart.",
         'noten': "Noten zijn rijk aan omega-3 vetzuren en kunnen helpen bij het verlagen van cholesterol.",
         'vis': "Vette vis bevat omega-3 vetzuren die belangrijk zijn voor de hersenfunctie.",
-        'yoghurt': "Yoghurt bevat probiotica die bijdragen aan een gezonde darmflora.",
-        'haver': "Haver bevat bètaglucaan, een vezel die helpt bij het verlagen van cholesterol.",
-        'bonen': "Bonen zijn rijk aan plantaardige eiwitten en vezels, goed voor spijsvertering.",
-        'quinoa': "Quinoa is een complete eiwitbron en bevat alle essentiële aminozuren."
+        'yoghurt': "Yoghurt bevat probiotica die bijdragen aan een gezonde darmflora."
     }
     
     ingredient_lower = ingredient_name.lower()
@@ -764,8 +955,8 @@ def get_ingredient_health_facts(ingredient_name):
         if key in ingredient_lower:
             return fact
     
-    # Fallback algemene weetjes
-    if 'groente' in ingredient_lower or any(veg in ingredient_lower for veg in ['sla', 'andijvie', 'rucola']):
+    # Category-based fallbacks
+    if any(veg in ingredient_lower for veg in ['sla', 'andijvie', 'rucola']):
         return "Groene bladgroenten zijn rijk aan foliumzuur en ijzer, essentieel voor energiemetabolisme."
     elif 'fruit' in ingredient_lower:
         return "Fruit bevat natuurlijke suikers, vezels en antioxidanten die bijdragen aan uw dagelijkse vitaminebehoefte."
@@ -774,83 +965,76 @@ def get_ingredient_health_facts(ingredient_name):
     
     return "Dit ingrediënt draagt bij aan een gevarieerd en uitgebalanceerd voedingspatroon."
 
-def calculate_health_score_from_nutrition(nutrition_data):
-    """Bereken gezondheidsscore op basis van voedingswaarden"""
-    if not nutrition_data:
-        return 5
 
-    score = 10  # Start with perfect score
-
-    # Penalty for high calories (more than 300 kcal/100g)
-    if nutrition_data['calories'] > 300:
-        score -= 1
-    elif nutrition_data['calories'] > 500:
-        score -= 2
-
-    # Penalty for high saturated fat (more than 5g/100g)
-    if nutrition_data['saturated_fat'] > 5:
-        score -= 1
-    elif nutrition_data['saturated_fat'] > 10:
-        score -= 2
-
-    # Penalty for high sugar (more than 10g/100g)
-    if nutrition_data['sugar'] > 10:
-        score -= 1
-    elif nutrition_data['sugar'] > 20:
-        score -= 2
-
-    # Penalty for high salt (more than 1g/100g)
-    if nutrition_data['salt'] > 1:
-        score -= 1
-    elif nutrition_data['salt'] > 2:
-        score -= 2
-
-    # Bonus for high fiber (more than 3g/100g)
-    if nutrition_data['fiber'] > 3:
-        score += 1
-
-    # Bonus for high protein (more than 10g/100g)
-    if nutrition_data['protein'] > 10:
-        score += 1
-
-    # NOVA group penalty (higher = more processed)
-    nova_penalty = {1: 0, 2: -1, 3: -2, 4: -3}
-    score += nova_penalty.get(nutrition_data['nova_group'], -1)
-
-    return max(1, min(10, score))
-
-def get_health_score(ingredient_name):
-    """Geef gezondheidsscore voor een ingrediënt"""
-    ingredient_lower = ingredient_name.lower()
-
-    # First try local HEALTH_SCORES for fast lookup
-    for key, score in HEALTH_SCORES.items():
-        if key in ingredient_lower:
-            return score
-
-    match = process.extractOne(ingredient_lower, HEALTH_SCORES.keys(), 
-                             scorer=fuzz.WRatio, score_cutoff=70)
-    if match:
-        return HEALTH_SCORES[match[0]]
-
-    # If not found locally, try OpenFoodFacts API
-    nutrition_data = get_nutrition_data(ingredient_name)
-    if nutrition_data:
-        api_score = calculate_health_score_from_nutrition(nutrition_data)
-        logger.info(f"Using API nutrition score for {ingredient_name}: {api_score}")
-        return api_score
+def calculate_total_nutrition(all_ingredients: List[Dict[str, Any]]) -> Dict[str, float]:
+    """
+    Calculate total nutrition values for the entire recipe.
     
-    # Default score if nothing found
-    return CONFIG.get("health_scoring", {}).get("default_unknown_score", 5)
+    Args:
+        all_ingredients (List[Dict[str, Any]]): List of ingredient data with nutrition
+        
+    Returns:
+        Dict[str, float]: Total nutrition values per recipe
+        
+    Note:
+        Estimates portion sizes based on quantities when available,
+        uses conservative defaults otherwise
+    """
+    total = {
+        'calories': 0, 'protein': 0, 'carbohydrates': 0, 'fiber': 0,
+        'sugar': 0, 'fat': 0, 'saturated_fat': 0, 'sodium': 0,
+        'potassium': 0, 'calcium': 0, 'iron': 0, 'vitamin_c': 0
+    }
+    
+    for ingredient in all_ingredients:
+        nutrition = ingredient.get('nutrition')
+        if nutrition:
+            # Estimate portion factor
+            portion_factor = 1.0
+            if ingredient.get('amount'):
+                if ingredient.get('unit') in ['gram', 'g']:
+                    portion_factor = ingredient['amount'] / 100
+                elif ingredient.get('unit') in ['eetlepel', 'el']:
+                    portion_factor = ingredient['amount'] * 15 / 100
+                elif ingredient.get('unit') in ['theelepel', 'tl']:
+                    portion_factor = ingredient['amount'] * 5 / 100
+                else:
+                    portion_factor = 0.5
+            else:
+                portion_factor = 0.3
+            
+            for key in total.keys():
+                if nutrition.get(key):
+                    total[key] += nutrition[key] * portion_factor
+    
+    # Round for readability
+    for key in total.keys():
+        total[key] = round(total[key], 1)
+    
+    logger.debug(f"Calculated total nutrition: {total}")
+    return total
 
-def calculate_health_goals_scores(total_nutrition):
-    """Bereken scores voor verschillende gezondheidsdoelen"""
+
+def calculate_health_goals_scores(total_nutrition: Dict[str, float]) -> Dict[str, int]:
+    """
+    Calculate health scores for specific health goals.
+    
+    Args:
+        total_nutrition (Dict[str, float]): Total nutrition values
+        
+    Returns:
+        Dict[str, int]: Health scores for different goals (1-10)
+        
+    Note:
+        Evaluates recipe suitability for weight loss, muscle building,
+        energy boost, blood pressure control, and general health
+    """
     if not total_nutrition:
         return {}
     
     scores = {}
     
-    # Gewicht verliezen (focus op lage calorieën, hoge vezels, lage suikers)
+    # Weight loss (low calories, high fiber, low sugar)
     weight_loss_score = 10
     if total_nutrition['calories'] > 400:
         weight_loss_score -= 3
@@ -867,19 +1051,19 @@ def calculate_health_goals_scores(total_nutrition):
     
     scores['weight_loss'] = max(1, min(10, weight_loss_score))
     
-    # Spiergroei/herstel (focus op hoge eiwitten, matige calorieën)
+    # Muscle building (high protein, moderate calories)
     muscle_score = 5
     if total_nutrition['protein'] > 20:
         muscle_score += 3
     elif total_nutrition['protein'] > 35:
         muscle_score += 5
     
-    if total_nutrition['calories'] > 300 and total_nutrition['calories'] < 600:
+    if 300 < total_nutrition['calories'] < 600:
         muscle_score += 2
     
     scores['muscle_building'] = max(1, min(10, muscle_score))
     
-    # Meer energie (focus op complexe koolhydraten, B-vitamines)
+    # Energy boost (complex carbs, low sugar)
     energy_score = 6
     if total_nutrition['carbohydrates'] > 40 and total_nutrition['sugar'] < 20:
         energy_score += 2
@@ -892,7 +1076,7 @@ def calculate_health_goals_scores(total_nutrition):
     
     scores['energy_boost'] = max(1, min(10, energy_score))
     
-    # Bloeddruk verlagen (focus op laag natrium, hoog kalium)
+    # Blood pressure (low sodium, high potassium)
     blood_pressure_score = 8
     if total_nutrition['sodium'] > 500:
         blood_pressure_score -= 3
@@ -907,7 +1091,7 @@ def calculate_health_goals_scores(total_nutrition):
     
     scores['blood_pressure'] = max(1, min(10, blood_pressure_score))
     
-    # Algemene gezondheid (uitgebalanceerd)
+    # General health (balanced)
     general_health_score = 6
     if total_nutrition['fiber'] > 6:
         general_health_score += 1
@@ -920,208 +1104,100 @@ def calculate_health_goals_scores(total_nutrition):
     
     scores['general_health'] = max(1, min(10, general_health_score))
     
+    logger.debug(f"Health goals scores: {scores}")
     return scores
 
-def calculate_total_nutrition(all_ingredients):
-    """Bereken totale voedingswaarden van het recept"""
-    total = {
-        'calories': 0,
-        'protein': 0,
-        'carbohydrates': 0,
-        'fiber': 0,
-        'sugar': 0,
-        'fat': 0,
-        'saturated_fat': 0,
-        'sodium': 0,
-        'potassium': 0,
-        'calcium': 0,
-        'iron': 0,
-        'vitamin_c': 0
-    }
-    
-    ingredient_count = 0
-    
-    for ingredient in all_ingredients:
-        nutrition = ingredient.get('nutrition')
-        if nutrition:
-            # Schat portiegrootte op basis van hoeveelheid (als beschikbaar)
-            portion_factor = 1.0
-            if ingredient.get('amount'):
-                # Basis schatting: 100g per ingredient tenzij anders aangegeven
-                if ingredient.get('unit') == 'gram' or ingredient.get('unit') == 'g':
-                    portion_factor = ingredient['amount'] / 100
-                elif ingredient.get('unit') in ['eetlepel', 'el']:
-                    portion_factor = ingredient['amount'] * 15 / 100  # 15ml per eetlepel
-                elif ingredient.get('unit') in ['theelepel', 'tl']:
-                    portion_factor = ingredient['amount'] * 5 / 100   # 5ml per theelepel
-                else:
-                    portion_factor = 0.5  # Standaard kleinere portie voor stuks/andere eenheden
-            else:
-                portion_factor = 0.3  # Conservatieve schatting zonder hoeveelheid
-            
-            for key in total.keys():
-                if nutrition.get(key):
-                    total[key] += nutrition[key] * portion_factor
-            
-            ingredient_count += 1
-    
-    # Rond af tot hele getallen voor betere leesbaarheid
-    for key in total.keys():
-        total[key] = round(total[key], 1)
-    
-    return total
 
-def calculate_health_explanation(ingredients_with_scores):
-    """Bereken uitleg voor gezondheidsscore"""
+def calculate_health_explanation(ingredients_with_scores: List[Dict[str, Any]]) -> List[str]:
+    """
+    Generate explanations for health scores and recommendations.
+    
+    Args:
+        ingredients_with_scores (List[Dict[str, Any]]): Ingredients with health scores
+        
+    Returns:
+        List[str]: List of explanation strings with emojis
+        
+    Note:
+        Provides user-friendly explanations of why a recipe scored
+        the way it did and what could be improved
+    """
     explanations = []
     high_scoring = [ing for ing in ingredients_with_scores if ing['health_score'] >= 7]
     medium_scoring = [ing for ing in ingredients_with_scores if 4 <= ing['health_score'] < 7]
     low_scoring = [ing for ing in ingredients_with_scores if ing['health_score'] < 4]
-
+    
     if high_scoring:
-        explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {', '.join([ing['name'] for ing in high_scoring])}")
-
+        names = ', '.join([ing['name'] for ing in high_scoring])
+        explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {names}")
+    
     if medium_scoring:
-        explanations.append(f"⚠️ Neutrale ingrediënten (score 4-6): {', '.join([ing['name'] for ing in medium_scoring])}")
-
+        names = ', '.join([ing['name'] for ing in medium_scoring])
+        explanations.append(f"⚠️ Neutrale ingrediënten (score 4-6): {names}")
+    
     if low_scoring:
-        explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join([ing['name'] for ing in low_scoring])}")
-
-    # Add nutrition insights
+        names = ', '.join([ing['name'] for ing in low_scoring])
+        explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {names}")
+    
+    # Additional insights
     total_ingredients = len(ingredients_with_scores)
     processed_count = sum(1 for ing in ingredients_with_scores if ing['health_score'] <= 4)
     natural_count = sum(1 for ing in ingredients_with_scores if ing['health_score'] >= 7)
-
+    
     if processed_count > total_ingredients * 0.5:
         explanations.append("🔍 Dit recept bevat veel bewerkte ingrediënten. Overweeg verse alternatieven.")
-
+    
     if natural_count > total_ingredients * 0.6:
         explanations.append("🌱 Excellent! Dit recept is rijk aan natuurlijke, onbewerkte ingrediënten.")
-
+    
     return explanations
 
-def parse_qty(line: str):
-    """Parse hoeveelheid uit ingrediënt regel - verbeterde versie"""
-    # Uitgebreidere pattern matching voor verschillende formaten
-    patterns = [
-        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s*(gram|g|ml|milliliter|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes|snufje|snufjes|takje|takjes)\s+(.*)",
-        r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",  # met eenheid tussen haakjes
-        r"(\d+(?:[.,]\d+)?)\s+(.*)",  # alleen getal en ingrediënt
-        r"(een\s+(?:half|halve|kwart|hele)?)\s+(.*)",  # 'een half', 'een hele' etc
-        r"(½|¼|¾|⅓|⅔|⅛)\s+(.*)",  # breuken
-    ]
-    
-    original_line = line
-    line_lower = line.lower().strip()
-    
-    for pattern in patterns:
-        m = re.match(pattern, line_lower)
-        if m:
-            amount_str = m.group(1)
-            
-            # Converteer speciale gevallen
-            if 'een half' in amount_str or 'halve' in amount_str:
-                amount = 0.5
-                unit = 'stuks'
-                name = m.group(2) if len(m.groups()) >= 2 else ''
-            elif 'een kwart' in amount_str:
-                amount = 0.25
-                unit = 'stuks'
-                name = m.group(2) if len(m.groups()) >= 2 else ''
-            elif '½' in amount_str:
-                amount = 0.5
-                unit = 'stuks'
-                name = m.group(2) if len(m.groups()) >= 2 else ''
-            elif '¼' in amount_str:
-                amount = 0.25
-                unit = 'stuks'
-                name = m.group(2) if len(m.groups()) >= 2 else ''
-            elif '¾' in amount_str:
-                amount = 0.75
-                unit = 'stuks'
-                name = m.group(2) if len(m.groups()) >= 2 else ''
-            else:
-                try:
-                    # Vervang komma's door punten voor decimalen
-                    amount_clean = amount_str.replace(',', '.')
-                    # Handel ranges af (bijv. "2-3")
-                    if '-' in amount_clean or '/' in amount_clean:
-                        nums = re.findall(r'\d+(?:\.\d+)?', amount_clean)
-                        if len(nums) >= 2:
-                            amount = (float(nums[0]) + float(nums[1])) / 2
-                        else:
-                            amount = float(nums[0]) if nums else 1
-                    else:
-                        amount = float(amount_clean)
-                except:
-                    amount = 1
-                
-                # Bepaal unit en name op basis van pattern
-                if len(m.groups()) >= 3:  # Pattern met unit
-                    unit = m.group(2)
-                    name = m.group(3).strip()
-                elif len(m.groups()) >= 2:
-                    if pattern == patterns[1]:  # Pattern met haakjes
-                        name = m.group(2).strip()
-                        unit = m.group(3) if len(m.groups()) >= 3 else 'stuks'
-                    else:
-                        unit = 'stuks'
-                        name = m.group(2).strip()
-                else:
-                    unit = 'stuks'
-                    name = line_lower.strip()
-            
-            # Normaliseer unit namen
-            unit_mapping = {
-                'g': 'gram', 'ml': 'milliliter', 'l': 'liter',
-                'el': 'eetlepel', 'eetlepels': 'eetlepel',
-                'tl': 'theelepel', 'theelepels': 'theelepel',
-                'st': 'stuks', 'stuks': 'stuks', 'stuk': 'stuks',
-                'teen': 'teentje', 'teentjes': 'teentje',
-                'kopjes': 'kopje', 'blikken': 'blik', 'pakken': 'pak',
-                'zakjes': 'zakje', 'snufjes': 'snufje', 'takjes': 'takje'
-            }
-            
-            unit = unit_mapping.get(unit, unit)
-            
-            return amount, unit, name
-    
-    # Als geen pattern matcht, return original
-    return None, None, line.lower().strip()
 
-def find_substitution(name: str):
-    """Zoek vervanging voor ingrediënt"""
-    key = process.extractOne(name, SUBS.keys(), scorer=fuzz.WRatio, score_cutoff=85)
-    return SUBS[key[0]] if key else None
-
-def analyse(url: str):
-    """Hoofdanalyse functie"""
+def analyse(url: str) -> Dict[str, Any]:
+    """
+    Main analysis function for recipe health assessment.
+    
+    Args:
+        url (str): URL of recipe webpage to analyze
+        
+    Returns:
+        Dict[str, Any]: Complete analysis results including ingredients,
+                       health scores, nutrition data, and recommendations
+        
+    Raises:
+        Exception: When analysis fails due to scraping issues or invalid data
+        
+    Note:
+        Primary entry point for recipe analysis. Orchestrates scraping,
+        processing, scoring, and data compilation
+    """
     try:
         logger.info(f"Starting analysis for {url}")
-
-        # Scrape ingredients
+        
+        # Extract ingredients from webpage
         ingredients_list, recipe_title = smart_ingredient_scraping(url)
-
+        
         if not ingredients_list or len(ingredients_list) < 3:
             raise Exception("Geen voldoende ingrediënten gevonden")
-
-        # Process ingredients
+        
+        # Process each ingredient
         all_ingredients = []
         swaps = []
-
+        
         for line in ingredients_list:
             if not line or len(line.strip()) < 2:
                 continue
-
-            amount, unit, name = parse_qty(line)
-
+            
+            amount, unit, name = parse_quantity(line)
+            
             if len(name.strip()) < 2:
                 continue
-
+            
+            # Get health data
             health_score = get_health_score(name)
             nutrition_data = get_nutrition_data(name)
-            alt = find_substitution(name)
-
+            substitution = find_substitution(name)
+            
             ingredient_data = {
                 "original_line": line,
                 "name": name.title(),
@@ -1129,35 +1205,36 @@ def analyse(url: str):
                 "unit": unit,
                 "health_score": health_score,
                 "nutrition": nutrition_data,
-                "substitution": alt,
-                "has_healthier_alternative": bool(alt),
+                "substitution": substitution,
+                "has_healthier_alternative": bool(substitution),
                 "health_fact": get_ingredient_health_facts(name)
             }
-
+            
             all_ingredients.append(ingredient_data)
-
-            if alt:
+            
+            # Track substitutions
+            if substitution:
                 swaps.append({
-                    "ongezond_ingredient": name.title(), 
-                    "vervang_door": alt,
+                    "ongezond_ingredient": name.title(),
+                    "vervang_door": substitution,
                     "health_score": health_score
                 })
-
+        
         if not all_ingredients:
             raise Exception("Geen bruikbare ingrediënten gevonden na processing")
-
-        all_ingredients.sort(key=lambda x: (-x['health_score'], -int(x['has_healthier_alternative'])))
-
+        
+        # Sort ingredients by health score and substitution availability
+        all_ingredients.sort(
+            key=lambda x: (-x['health_score'], -int(x['has_healthier_alternative']))
+        )
+        
+        # Calculate overall metrics
         total_health_score = sum(ing['health_score'] for ing in all_ingredients) / len(all_ingredients)
         health_explanation = calculate_health_explanation(all_ingredients)
-        
-        # Bereken totale voedingswaarden en gezondheidsdoelen scores
         total_nutrition = calculate_total_nutrition(all_ingredients)
         health_goals_scores = calculate_health_goals_scores(total_nutrition)
-
-        logger.info(f"Analysis complete: {len(all_ingredients)} ingredients, score: {total_health_score:.1f}")
-
-        return {
+        
+        result = {
             "all_ingredients": all_ingredients,
             "swaps": swaps,
             "health_score": round(total_health_score, 1),
@@ -1166,11 +1243,32 @@ def analyse(url: str):
             "total_nutrition": total_nutrition,
             "health_goals_scores": health_goals_scores
         }
-
+        
+        logger.info(f"Analysis complete: {len(all_ingredients)} ingredients, score: {total_health_score:.1f}")
+        return result
+        
     except Exception as e:
         logger.error(f"Analysis failed: {str(e)}")
         raise
 
+
 if __name__ == "__main__":
-    import sys, pprint
-    pprint.pp(analyse(sys.argv[1]))
+    """
+    Command line interface for testing recipe analysis.
+    
+    Usage:
+        python analyse.py <recipe_url>
+    """
+    import sys
+    import pprint
+    
+    if len(sys.argv) != 2:
+        print("Usage: python analyse.py <recipe_url>")
+        sys.exit(1)
+    
+    try:
+        result = analyse(sys.argv[1])
+        pprint.pprint(result)
+    except Exception as e:
+        print(f"Analysis failed: {e}")
+        sys.exit(1)
