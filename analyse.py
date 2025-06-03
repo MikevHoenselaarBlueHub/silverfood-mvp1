@@ -1,3 +1,7 @@
+Applying OpenAI ingredient validation, adding Southern Living ingredient selector, and addressing ingredient validation and language issues.
+```
+
+```python
 """
 Silverfood Recipe Analysis Module
 =================================
@@ -437,15 +441,20 @@ def selenium_scrape_ingredients(url: str) -> Tuple[List[str], str]:
         domain = get_domain(url)
         ingredients = []
 
-        # Try multiple selector strategies
+        # Common ingredient selectors for different websites
         selectors = [
-            # Domain specific
-            '.recipe-ingredients-ingredient-list_name__YX7Rl',
-            '[data-testhook="ingredients"] td:last-child p',
-            '.ingredient-line', '.ingredients-list li',
-            # Generic
-            '[class*="ingredient"]', '.ingredient', '.ingredients li',
-            'ul li', 'ol li', 'table td'
+            'ul.mm-recipes-structured-ingredients__list li',  # Southern Living specific
+            '[class*="ingredient"]',
+            '[class*="recipe-ingredient"]',
+            '.ingredient-list li',
+            '.ingredients li',
+            '.recipe-ingredients li',
+            'ul.ingredients li',
+            '[data-ingredient]',
+            '.ingredient',
+            '.recipe-ingredient',
+            '[class*="ingredients"] li',
+            'ul li',  # Most generic - last resort
         ]
 
         for selector in selectors:
@@ -1163,116 +1172,194 @@ def calculate_health_explanation(ingredients_with_scores: List[Dict[str, Any]]) 
 
     return explanations
 
+async def validate_ingredients_with_openai(ingredients_list: List[str]) -> List[str]:
+    """
+    Validate and filter ingredients using OpenAI to remove non-food items.
+
+    Args:
+        ingredients_list: List of potential ingredient strings
+
+    Returns:
+        List of validated food ingredients only
+    """
+    if not ingredients_list:
+        return []
+
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            logger.warning("No OpenAI API key available for ingredient validation")
+            return ingredients_list  # Return original list if no API key
+
+        # Create batch request to validate all ingredients at once
+        ingredients_text = "\n".join([f"{i+1}. {ing}" for i, ing in enumerate(ingredients_list)])
+
+        prompt = f"""Je bent een voedingsexpert. Analyseer de volgende lijst met mogelijke ingrediënten en filter alleen de echte voedselingrediënten eruit. 
+
+Verwijder items zoals:
+- Navigatie teksten ("quick & easy", "view all", "subscribe")
+- Website interface elementen ("log in", "help", "my account")
+- Niet-eetbare items
+- Lege strings of betekenisloze tekst
+
+Lijst om te controleren:
+{ingredients_text}
+
+Geef alleen de geldige voedselingrediënten terug in JSON formaat:
+{{"valid_ingredients": ["ingredient1", "ingredient2", ...]}}
+
+Geef geen uitleg, alleen de JSON."""
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "Je bent een voedingsexpert die ingrediënten kan identificeren en filteren."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 1000,
+            "temperature": 0.1
+        }
+
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=15
+        )
+
+        if response.status_code == 200:
+            result = response.json()
+            ai_response = result['choices'][0]['message']['content'].strip()
+
+            # Parse JSON response
+            try:
+                parsed_result = json.loads(ai_response)
+                valid_ingredients = parsed_result.get('valid_ingredients', [])
+                logger.info(f"OpenAI filtered {len(ingredients_list)} items to {len(valid_ingredients)} valid ingredients")
+                return valid_ingredients
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse OpenAI JSON response, using original list")
+                return ingredients_list
+        else:
+            logger.warning(f"OpenAI API error: {response.status_code}")
+            return ingredients_list
+
+    except Exception as e:
+        logger.error(f"Failed to validate ingredients with OpenAI: {e}")
+        return ingredients_list  # Return original list on error
 
 def analyse(url: str) -> Dict[str, Any]:
     """
-    Main analysis function for recipe health assessment.
+    Main analysis function that coordinates the entire recipe analysis process.
 
     Args:
-        url (str): URL of recipe webpage to analyze
+        url (str): URL of the recipe page to analyze
 
     Returns:
-        Dict[str, Any]: Complete analysis results including ingredients,
-                       health scores, nutrition data, and recommendations
-
-    Raises:
-        Exception: When analysis fails due to scraping issues or invalid data
-
-    Note:
-        Primary entry point for recipe analysis. Orchestrates scraping,
-        processing, scoring, and data compilation
+        Dict[str, Any]: Complete analysis results including ingredients, 
+                       nutrition, health scores, and recommendations
     """
+    logger.info(f"Starting analysis for {url}")
+
+    # Extract ingredients
+    ingredients_list, recipe_title = smart_ingredient_scraping(url)
+
+    if not ingredients_list or len(ingredients_list) < 3:
+        raise Exception("Geen voldoende ingrediënten gevonden")
+
+    # Validate ingredients using OpenAI to filter out non-food items
+    import asyncio
     try:
-        logger.info(f"Starting analysis for {url}")
+        validated_ingredients = asyncio.run(validate_ingredients_with_openai(ingredients_list))
+        if validated_ingredients and len(validated_ingredients) < len(ingredients_list):
+            logger.info(f"Filtered {len(ingredients_list)} raw items to {len(validated_ingredients)} valid ingredients")
+            ingredients_list = validated_ingredients
+    except Exception as e:
+        logger.warning(f"Ingredient validation failed, using original list: {e}")
 
-        # Extract ingredients from webpage
-        ingredients_list, recipe_title = smart_ingredient_scraping(url)
+    # Process each ingredient
+    all_ingredients = []
+    swaps = []
+    seen_ingredients = set()  # Track to prevent duplicates
 
-        if not ingredients_list or len(ingredients_list) < 3:
-            raise Exception("Geen voldoende ingrediënten gevonden")
+    for line in ingredients_list:
+        if not line or len(line.strip()) < 2:
+            continue
 
-        # Process each ingredient
-        all_ingredients = []
-        swaps = []
-        seen_ingredients = set()  # Track to prevent duplicates
+        amount, unit, name = parse_quantity(line)
 
-        for line in ingredients_list:
-            if not line or len(line.strip()) < 2:
-                continue
+        if len(name.strip()) < 2:
+            continue
 
-            amount, unit, name = parse_quantity(line)
+        # Normalize name for duplicate checking
+        normalized_name = name.lower().strip()
 
-            if len(name.strip()) < 2:
-                continue
+        # Skip if we've already seen this ingredient
+        if normalized_name in seen_ingredients:
+            logger.debug(f"Skipping duplicate ingredient: {name}")
+            continue
 
-            # Normalize name for duplicate checking
-            normalized_name = name.lower().strip()
+        seen_ingredients.add(normalized_name)
 
-            # Skip if we've already seen this ingredient
-            if normalized_name in seen_ingredients:
-                logger.debug(f"Skipping duplicate ingredient: {name}")
-                continue
+        # Get health data
+        health_score = get_health_score(name)
+        nutrition_data = get_nutrition_data(name)
+        substitution = find_substitution(name)
+        health_fact = get_ingredient_health_facts(name)
 
-            seen_ingredients.add(normalized_name)
-
-            # Get health data
-            health_score = get_health_score(name)
-            nutrition_data = get_nutrition_data(name)
-            substitution = find_substitution(name)
-            health_fact = get_ingredient_health_facts(name)
-
-            ingredient_data = {
-                "original_line": line,
-                "name": name.title(),
-                "amount": amount,
-                "unit": unit,
-                "health_score": health_score,
-                "nutrition": nutrition_data,
-                "substitution": substitution,
-                "has_healthier_alternative": bool(substitution),
-                "health_fact": health_fact
-            }
-
-            all_ingredients.append(ingredient_data)
-
-            # Track substitutions
-            if substitution:
-                swaps.append({
-                    "ongezond_ingredient": name.title(),
-                    "vervang_door": substitution,
-                    "health_score": health_score
-                })
-
-        if not all_ingredients:
-            raise Exception("Geen bruikbare ingrediënten gevonden na processing")
-
-        # Sort ingredients by health score and substitution availability
-        all_ingredients.sort(
-            key=lambda x: (-x['health_score'], -int(x['has_healthier_alternative']))
-        )
-
-        # Calculate overall metrics
-        total_health_score = sum(ing['health_score'] for ing in all_ingredients) / len(all_ingredients)
-        health_explanation = calculate_health_explanation(all_ingredients)
-        total_nutrition = calculate_total_nutrition(all_ingredients)
-        health_goals_scores = calculate_health_goals_scores(total_nutrition)
-
-        result = {
-            "all_ingredients": all_ingredients,
-            "swaps": swaps,
-            "health_score": round(total_health_score, 1),
-            "health_explanation": health_explanation,
-            "recipe_title": recipe_title,
-            "total_nutrition": total_nutrition,
-            "health_goals_scores": health_goals_scores
+        ingredient_data = {
+            "original_line": line,
+            "name": name.title(),
+            "amount": amount,
+            "unit": unit,
+            "health_score": health_score,
+            "nutrition": nutrition_data,
+            "substitution": substitution,
+            "has_healthier_alternative": bool(substitution),
+            "health_fact": health_fact
         }
 
-        logger.info(f"Analysis complete: {len(all_ingredients)} ingredients, score: {total_health_score:.1f}")
-        return result
+        all_ingredients.append(ingredient_data)
 
-    except Exception as e:
-        logger.error(f"Analysis failed: {str(e)}")
-        raise
+        # Track substitutions
+        if substitution:
+            swaps.append({
+                "ongezond_ingredient": name.title(),
+                "vervang_door": substitution,
+                "health_score": health_score
+            })
+
+    if not all_ingredients:
+        raise Exception("Geen bruikbare ingrediënten gevonden na processing")
+
+    # Sort ingredients by health score and substitution availability
+    all_ingredients.sort(
+        key=lambda x: (-x['health_score'], -int(x['has_healthier_alternative']))
+    )
+
+    # Calculate overall metrics
+    total_health_score = sum(ing['health_score'] for ing in all_ingredients) / len(all_ingredients)
+    health_explanation = calculate_health_explanation(all_ingredients)
+    total_nutrition = calculate_total_nutrition(all_ingredients)
+    health_goals_scores = calculate_health_goals_scores(total_nutrition)
+
+    result = {
+        "all_ingredients": all_ingredients,
+        "swaps": swaps,
+        "health_score": round(total_health_score, 1),
+        "health_explanation": health_explanation,
+        "recipe_title": recipe_title,
+        "total_nutrition": total_nutrition,
+        "health_goals_scores": health_goals_scores
+    }
+
+    logger.info(f"Analysis complete: {len(all_ingredients)} ingredients, score: {total_health_score:.1f}")
+    return result
 
 
 if __name__ == "__main__":
