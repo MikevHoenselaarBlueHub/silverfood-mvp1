@@ -518,7 +518,7 @@ function displayHealthExplanation(explanations) {
                 transition: all 0.3s ease;
             `;
             
-            aiButton.addEventListener('click', () => loadAIExplanation(unhealthyIngredients, aiButton));
+            aiButton.addEventListener('click', () => loadAIExplanation(unhealthyIngredients, aiButton, 'unhealthy'));
             aiButton.addEventListener('mouseover', () => {
                 aiButton.style.transform = 'scale(1.05)';
                 aiButton.style.boxShadow = '0 4px 15px rgba(255, 107, 107, 0.4)';
@@ -530,35 +530,84 @@ function displayHealthExplanation(explanations) {
             
             item.appendChild(aiButton);
         }
+        
+        // Add AI explanation for healthy ingredients
+        if (explanation.includes('✅ Gezonde ingrediënten')) {
+            const healthyIngredients = explanation.replace('✅ Gezonde ingrediënten (score 7-10): ', '');
+            
+            const aiButton = document.createElement('button');
+            aiButton.textContent = '🌱 Ontdek waarom deze ingrediënten zo gezond zijn';
+            aiButton.className = 'ai-explanation-btn healthy-btn';
+            aiButton.style.cssText = `
+                margin-top: 10px;
+                padding: 8px 16px;
+                background: linear-gradient(45deg, #28a745, #20c997);
+                color: white;
+                border: none;
+                border-radius: 8px;
+                cursor: pointer;
+                font-size: 0.9rem;
+                transition: all 0.3s ease;
+            `;
+            
+            aiButton.addEventListener('click', () => loadAIExplanation(healthyIngredients, aiButton, 'healthy'));
+            aiButton.addEventListener('mouseover', () => {
+                aiButton.style.transform = 'scale(1.05)';
+                aiButton.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+            });
+            aiButton.addEventListener('mouseout', () => {
+                aiButton.style.transform = 'scale(1)';
+                aiButton.style.boxShadow = 'none';
+            });
+            
+            item.appendChild(aiButton);
+        }
     });
 }
 
-async function loadAIExplanation(ingredients, button) {
+async function loadAIExplanation(ingredients, button, type = 'unhealthy') {
     const originalText = button.textContent;
     button.textContent = '⏳ AI denkt na...';
     button.disabled = true;
     
     try {
-        const response = await fetch(`/explain-unhealthy?ingredients=${encodeURIComponent(ingredients)}`);
+        const endpoint = type === 'healthy' ? 'explain-healthy' : 'explain-unhealthy';
+        const response = await fetch(`/${endpoint}?ingredients=${encodeURIComponent(ingredients)}`);
         const data = await response.json();
         
         // Create explanation div
         const explanationDiv = document.createElement('div');
         explanationDiv.className = 'ai-explanation';
-        explanationDiv.style.cssText = `
-            margin-top: 15px;
-            padding: 15px;
-            background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%);
-            border-left: 4px solid #ff6b6b;
-            border-radius: 8px;
-            line-height: 1.6;
-            font-size: 0.95rem;
-            color: #2d3748;
-            box-shadow: 0 2px 10px rgba(255, 107, 107, 0.1);
-        `;
+        
+        if (type === 'healthy') {
+            explanationDiv.style.cssText = `
+                margin-top: 15px;
+                padding: 15px;
+                background: linear-gradient(135deg, #f0fff4 0%, #e6ffed 100%);
+                border-left: 4px solid #28a745;
+                border-radius: 8px;
+                line-height: 1.6;
+                font-size: 0.95rem;
+                color: #2d3748;
+                box-shadow: 0 2px 10px rgba(40, 167, 69, 0.1);
+            `;
+        } else {
+            explanationDiv.style.cssText = `
+                margin-top: 15px;
+                padding: 15px;
+                background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%);
+                border-left: 4px solid #ff6b6b;
+                border-radius: 8px;
+                line-height: 1.6;
+                font-size: 0.95rem;
+                color: #2d3748;
+                box-shadow: 0 2px 10px rgba(255, 107, 107, 0.1);
+            `;
+        }
         
         const title = document.createElement('div');
-        title.innerHTML = '<strong>🤖 AI Voedingsexpert:</strong>';
+        const icon = type === 'healthy' ? '🌱' : '🤖';
+        title.innerHTML = `<strong>${icon} AI Voedingsexpert:</strong>`;
         title.style.marginBottom = '10px';
         
         const content = document.createElement('div');
@@ -574,10 +623,15 @@ async function loadAIExplanation(ingredients, button) {
         console.error('AI explanation failed:', error);
         button.textContent = '❌ AI uitleg mislukt';
         button.style.background = '#dc3545';
+        
+        const originalBackground = type === 'healthy' 
+            ? 'linear-gradient(45deg, #28a745, #20c997)' 
+            : 'linear-gradient(45deg, #ff6b6b, #ee5a24)';
+        
         setTimeout(() => {
             button.textContent = originalText;
             button.disabled = false;
-            button.style.background = 'linear-gradient(45deg, #ff6b6b, #ee5a24)';
+            button.style.background = originalBackground;
         }, 3000);
     }
 }

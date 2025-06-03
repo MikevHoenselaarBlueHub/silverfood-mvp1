@@ -715,6 +715,10 @@ button:focus, input:focus {
     box-shadow: 0 4px 15px rgba(255, 107, 107, 0.4);
 }
 
+.ai-explanation-btn.healthy-btn:hover {
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
+}
+
 .ai-explanation-btn:active {
     transform: scale(0.98);
 }

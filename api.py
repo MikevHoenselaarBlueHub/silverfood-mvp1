@@ -303,6 +303,15 @@ async def learned_patterns():
 @app.get("/explain-unhealthy")
 async def explain_unhealthy_ingredients(ingredients: str):
     """Generate AI explanation for unhealthy ingredients"""
+    return await get_ai_explanation(ingredients, "unhealthy")
+
+@app.get("/explain-healthy")
+async def explain_healthy_ingredients(ingredients: str):
+    """Generate AI explanation for healthy ingredients"""
+    return await get_ai_explanation(ingredients, "healthy")
+
+async def get_ai_explanation(ingredients: str, explanation_type: str):
+    """Generate AI explanation for ingredients"""
     try:
         # OpenAI API key
         api_key = "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"
@@ -312,18 +321,28 @@ async def explain_unhealthy_ingredients(ingredients: str):
             "Content-Type": "application/json"
         }
         
-        prompt = f"""
-        Je bent een voedingsexpert. Leg uit waarom deze ingrediënten minder gezond zijn en geef praktische tips:
-        
-        Ingrediënten: {ingredients}
-        
-        Geef een korte, begrijpelijke uitleg in het Nederlands (max 200 woorden) over:
-        1. Waarom deze ingrediënten minder gezond zijn
-        2. Wat je in plaats daarvan zou kunnen gebruiken
-        3. Hoe je deze ingrediënten in balans kunt houden
-        
-        Wees positief en niet te streng - geef praktische tips.
-        """
+        if explanation_type == "healthy":
+            prompt = f"""
+            Je bent een voedingsexpert. Leg in 1-2 zinnen uit waarom deze gezonde ingrediënten zo goed zijn:
+            
+            Ingrediënten: {ingredients}
+            
+            Geef een korte, positieve uitleg in het Nederlands (max 100 woorden) over waarom deze ingrediënten gezond zijn.
+            Focus op de belangrijkste voedingsstoffen en gezondheidsvoordelen.
+            """
+        else:
+            prompt = f"""
+            Je bent een voedingsexpert. Leg uit waarom deze ingrediënten minder gezond zijn en geef praktische tips:
+            
+            Ingrediënten: {ingredients}
+            
+            Geef een korte, begrijpelijke uitleg in het Nederlands (max 200 woorden) over:
+            1. Waarom deze ingrediënten minder gezond zijn
+            2. Wat je in plaats daarvan zou kunnen gebruiken
+            3. Hoe je deze ingrediënten in balans kunt houden
+            
+            Wees positief en niet te streng - geef praktische tips.
+            """
         
         data = {
             "model": "gpt-3.5-turbo",
@@ -331,7 +350,7 @@ async def explain_unhealthy_ingredients(ingredients: str):
                 {"role": "system", "content": "Je bent een vriendelijke voedingsexpert die mensen helpt gezonder te eten."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 300,
+            "max_tokens": 200 if explanation_type == "healthy" else 300,
             "temperature": 0.7
         }
         
@@ -339,7 +358,7 @@ async def explain_unhealthy_ingredients(ingredients: str):
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
-            timeout=10
+            timeout=15
         )
         
         if response.status_code == 200:
@@ -348,11 +367,13 @@ async def explain_unhealthy_ingredients(ingredients: str):
             return {"explanation": explanation}
         else:
             logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
-            return {"explanation": "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."}
+            fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
+            return {"explanation": fallback_msg}
             
     except Exception as e:
         logger.error(f"Failed to get AI explanation: {e}")
-        return {"explanation": "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."}
+        fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
+        return {"explanation": fallback_msg}
 
 # Error handlers
 @app.exception_handler(404)
