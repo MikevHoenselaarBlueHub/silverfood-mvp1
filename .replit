@@ -18,4 +18,4 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "python -m uvicorn api:app --host 0.0.0.0 --port 3000"
+args = "python -m uvicorn api:app --host 0.0.0.0 --port 5000"
