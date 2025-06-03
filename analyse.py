@@ -311,7 +311,7 @@ def clean_ingredient_text(text: str) -> Optional[str]:
 
     # More aggressive cleaning for duplicates
     original_text = text
-    
+
     # Remove leading quantities and measurements with better pattern
     text = re.sub(r'^[gG]\s*\d+\s*[gG]ram\s+', '', text, flags=re.IGNORECASE)
     text = re.sub(r'^[eE][lL]\s*\d+\s*[eE]etlepels?\s+', '', text, flags=re.IGNORECASE)
@@ -832,7 +832,7 @@ def parse_quantity(line: str) -> Tuple[Optional[float], Optional[str], str]:
     patterns = [
         r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s*(gram|g|ml|milliliter|liter|l|eetlepels?|el|theelepels?|tl|kopjes?|stuks?|st|teen|teentjes?|blik|blikken|pak|pakken|zakje|zakjes)\s+(.*)",
         r"(\d+(?:[.,]\d+)?(?:\s*[-/]\s*\d+(?:[.,]\d+)?)?)\s+(.*?)\s*\(([^)]+)\)",
-        r"(\d+(?:[.,]\d+)?)\s+(.*)",
+        rr"(\d+(?:[.,]\d+)?)\s+(.*)",
         r"(een\s+(?:half|halve|kwart|hele)?)\s+(.*)",
         r"(½|¼|¾|⅓|⅔|⅛)\s+(.*)",
     ]
@@ -1207,12 +1207,12 @@ def analyse(url: str) -> Dict[str, Any]:
 
             # Normalize name for duplicate checking
             normalized_name = name.lower().strip()
-            
+
             # Skip if we've already seen this ingredient
             if normalized_name in seen_ingredients:
                 logger.debug(f"Skipping duplicate ingredient: {name}")
                 continue
-            
+
             seen_ingredients.add(normalized_name)
 
             # Get health data
@@ -1284,6 +1284,9 @@ if __name__ == "__main__":
     """
     import sys
     import pprint
+    import os
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
 
     if len(sys.argv) != 2:
         print("Usage: python analyse.py <recipe_url>")
