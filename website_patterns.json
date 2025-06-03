@@ -1,0 +1,9 @@
+{
+  "ah.nl": {
+    "ingredient_selectors": [
+      "[class*=\"ingredient\"]"
+    ],
+    "auto_detected": true,
+    "success_count": 1
+  }
+}
