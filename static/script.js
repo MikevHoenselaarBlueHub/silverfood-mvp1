@@ -1,42 +1,49 @@
 // DOM elementen
-const recipeUrlInput = document.getElementById('recipeUrl');
-const analyzeBtn = document.getElementById('analyzeBtn');
-const btnText = document.querySelector('.btn-text');
-const loader = document.querySelector('.loader');
-const resultsDiv = document.getElementById('results');
-const errorDiv = document.getElementById('error');
-const errorMessage = document.getElementById('errorMessage');
+const recipeUrlInput = document.getElementById("recipeUrl");
+const analyzeBtn = document.getElementById("analyzeBtn");
+const btnText = document.querySelector(".btn-text");
+const loader = document.querySelector(".loader");
+const resultsDiv = document.getElementById("results");
+const errorDiv = document.getElementById("error");
+const errorMessage = document.getElementById("errorMessage");
 
 // Health tips functionaliteit
 let healthTips = [];
 let currentTipIndex = 0;
 let tipInterval = null;
-let config = { 
-    health_tips: { interval_seconds: 2, show_tips: true, fade_duration_ms: 500 },
-    ui: { default_url: '', examples: [] }
+let config = {
+    health_tips: {
+        interval_seconds: 4, // Dit moet overeenkomen met de waarde in config.json
+        show_tips: true,
+        fade_duration_ms: 500,
+    },
+    ui: {
+        default_url: "",
+        examples: [],
+    },
 };
 
 // Voorbeelden van ondersteunde URLs (fallback)
 let exampleUrls = [
-    'https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata',
-    'https://www.jumbo.com/recepten/pasta-met-doperwten-ricotta-en-munt-999966',
-    'https://www.leukerecepten.nl/recepten/couscous-salade-met-feta/',
-    'https://www.24kitchen.nl/recepten/pasta-pesto-met-zongedroogde-tomaten'
+    "https://www.ah.nl/allerhande/recept/R-R1201256/orzosalade-met-asperges-nectarines-en-burrata",
+    "https://www.jumbo.com/recepten/pasta-met-doperwten-ricotta-en-munt-999966",
+    "https://www.leukerecepten.nl/recepten/couscous-salade-met-feta/",
+    "https://www.24kitchen.nl/recepten/pasta-pesto-met-zongedroogde-tomaten",
 ];
 
 // Wordt ingesteld na config laden
-recipeUrlInput.placeholder = 'Voer een recept-URL in van elke website...';
+recipeUrlInput.placeholder = "Voer een recept-URL in van elke website...";
 
 // Event listeners
-analyzeBtn.addEventListener('click', analyzeRecipe);
-recipeUrlInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
+analyzeBtn.addEventListener("click", analyzeRecipe);
+recipeUrlInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") {
         analyzeRecipe();
     }
 });
 
 // Input validatie met real-time feedback
-recipeUrlInput.addEventListener('input', (e) => {
+recipeUrlInput.addEventListener("input", (e) => {
     const url = e.target.value.trim();
     if (url) {
         validateUrl(url);
@@ -45,17 +52,18 @@ recipeUrlInput.addEventListener('input', (e) => {
 
 function validateUrl(url) {
     // Basis URL validatie - alle recept sites worden nu ondersteund!
-    const isValidUrl = url.startsWith('http://') || url.startsWith('https://');
-    
+    const isValidUrl = url.startsWith("http://") || url.startsWith("https://");
+
     if (url && !isValidUrl) {
-        recipeUrlInput.style.borderColor = '#dc3545';
-        recipeUrlInput.title = 'URL moet beginnen met http:// of https://';
+        recipeUrlInput.style.borderColor = "#dc3545";
+        recipeUrlInput.title = "URL moet beginnen met http:// of https://";
     } else if (url) {
-        recipeUrlInput.style.borderColor = '#28a745';
-        recipeUrlInput.title = 'Elke receptenwebsite wordt ondersteund dankzij AI-detectie!';
+        recipeUrlInput.style.borderColor = "#28a745";
+        recipeUrlInput.title =
+            "Elke receptenwebsite wordt ondersteund dankzij AI-detectie!";
     } else {
-        recipeUrlInput.style.borderColor = '';
-        recipeUrlInput.title = '';
+        recipeUrlInput.style.borderColor = "";
+        recipeUrlInput.title = "";
     }
 }
 
@@ -63,22 +71,25 @@ async function analyzeRecipe() {
     const url = recipeUrlInput.value.trim();
 
     if (!url) {
-        showError('Voer eerst een recept URL in', 'Geen URL ingevuld');
+        showError("Voer eerst een recept URL in", "Geen URL ingevuld");
         recipeUrlInput.focus(); // Focus terug naar input
         return;
     }
 
     // Basis URL validatie
-    if (!url.startsWith('http://') && !url.startsWith('https://')) {
-        showError('De URL moet beginnen met http:// of https://', 'Ongeldige URL');
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        showError(
+            "De URL moet beginnen met http:// of https://",
+            "Ongeldige URL",
+        );
         recipeUrlInput.focus();
         return;
     }
 
     // UI updates voor loading state - meer duidelijk voor senioren
     analyzeBtn.disabled = true;
-    btnText.textContent = 'Recept wordt geanalyseerd...';
-    loader.style.display = 'block';
+    btnText.textContent = "Recept wordt geanalyseerd...";
+    loader.style.display = "block";
     hideError();
     hideResults();
 
@@ -90,37 +101,55 @@ async function analyzeRecipe() {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.detail || `HTTP ${response.status}: ${response.statusText}`);
+            throw new Error(
+                errorData.detail ||
+                    `HTTP ${response.status}: ${response.statusText}`,
+            );
         }
 
         const data = await response.json();
         displayResults(data);
-
     } catch (error) {
-        console.error('Analysis Error:', error);
+        console.error("Analysis Error:", error);
 
         // Specifieke foutafhandeling met meer detail
-        let userMessage = 'Er is een onverwachte fout opgetreden. Probeer het later opnieuw.';
-        let errorTitle = 'Fout bij analyseren';
+        let userMessage =
+            "Er is een onverwachte fout opgetreden. Probeer het later opnieuw.";
+        let errorTitle = "Fout bij analyseren";
 
-        if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
-            userMessage = 'Geen internetverbinding. Controleer uw verbinding en probeer opnieuw.';
-            errorTitle = 'Verbindingsfout';
-        } else if (error.message.includes('niet ondersteund')) {
-            userMessage = 'Deze website wordt niet ondersteund. Probeer een recept van AH Allerhande of Jumbo.';
-            errorTitle = 'Website niet ondersteund';
-        } else if (error.message.includes('429')) {
-            userMessage = 'Te veel verzoeken. Wacht een minuut en probeer opnieuw.';
-            errorTitle = 'Te druk';
-        } else if (error.message.includes('geen ingrediënten') || error.message.includes('Geen ingrediënten')) {
-            userMessage = 'Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen receptpagina\n\nProbeer een andere recept-URL.';
-            errorTitle = 'Geen ingrediënten gevonden';
-        } else if (error.message.includes('tijdelijk niet beschikbaar')) {
-            userMessage = 'De analyseservice is tijdelijk niet beschikbaar. Dit kan komen door serveronderhoud. Probeer het over een paar minuten opnieuw.';
-            errorTitle = 'Service tijdelijk niet beschikbaar';
-        } else if (error.message.includes('geblokkeerd') || error.message.includes('403')) {
-            userMessage = 'Deze website blokkeert automatische toegang. Probeer een andere recept-URL van een ondersteunde website.';
-            errorTitle = 'Website blokkeert toegang';
+        if (
+            error.message.includes("Failed to fetch") ||
+            error.message.includes("NetworkError")
+        ) {
+            userMessage =
+                "Geen internetverbinding. Controleer uw verbinding en probeer opnieuw.";
+            errorTitle = "Verbindingsfout";
+        } else if (error.message.includes("niet ondersteund")) {
+            userMessage =
+                "Deze website wordt niet ondersteund. Probeer een recept van AH Allerhande of Jumbo.";
+            errorTitle = "Website niet ondersteund";
+        } else if (error.message.includes("429")) {
+            userMessage =
+                "Te veel verzoeken. Wacht een minuut en probeer opnieuw.";
+            errorTitle = "Te druk";
+        } else if (
+            error.message.includes("geen ingrediënten") ||
+            error.message.includes("Geen ingrediënten")
+        ) {
+            userMessage =
+                "Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen receptpagina\n\nProbeer een andere recept-URL.";
+            errorTitle = "Geen ingrediënten gevonden";
+        } else if (error.message.includes("tijdelijk niet beschikbaar")) {
+            userMessage =
+                "De analyseservice is tijdelijk niet beschikbaar. Dit kan komen door serveronderhoud. Probeer het over een paar minuten opnieuw.";
+            errorTitle = "Service tijdelijk niet beschikbaar";
+        } else if (
+            error.message.includes("geblokkeerd") ||
+            error.message.includes("403")
+        ) {
+            userMessage =
+                "Deze website blokkeert automatische toegang. Probeer een andere recept-URL van een ondersteunde website.";
+            errorTitle = "Website blokkeert toegang";
         } else if (error.message) {
             userMessage = error.message;
         }
@@ -128,20 +157,20 @@ async function analyzeRecipe() {
         showError(userMessage, errorTitle);
 
         // Log voor debugging
-        console.log('Failed URL:', url);
-        console.log('Error details:', error);
+        console.log("Failed URL:", url);
+        console.log("Error details:", error);
     } finally {
         // Reset UI
         analyzeBtn.disabled = false;
-        btnText.textContent = 'Analyseer Recept';
-        loader.style.display = 'none';
+        btnText.textContent = "Analyseer Recept";
+        loader.style.display = "none";
         hideLoadingMessage();
     }
 }
 
 function showLoadingMessage() {
-    const loadingDiv = document.createElement('div');
-    loadingDiv.id = 'loadingMessage';
+    const loadingDiv = document.createElement("div");
+    loadingDiv.id = "loadingMessage";
     loadingDiv.style.cssText = `
         background: rgba(245, 128, 41, 0.1);
         border: 2px solid rgb(245, 128, 41);
@@ -152,11 +181,11 @@ function showLoadingMessage() {
         font-size: 1.2rem;
         color: #d67e16;
     `;
-    loadingDiv.innerHTML = '⏳ Even geduld, we analyseren uw recept...';
+    loadingDiv.innerHTML = "⏳ Even geduld, we analyseren uw recept...";
 
     // Voeg gezondheidstip toe
-    const healthTipDiv = document.createElement('div');
-    healthTipDiv.id = 'healthTip';
+    const healthTipDiv = document.createElement("div");
+    healthTipDiv.id = "healthTip";
     healthTipDiv.style.cssText = `
         background: rgba(40, 167, 69, 0.1);
         border: 2px solid #28a745;
@@ -173,28 +202,28 @@ function showLoadingMessage() {
         transition: opacity ${config.health_tips.fade_duration_ms || 500}ms ease-in-out;
         font-weight: 500;
     `;
-    
+
     loadingDiv.appendChild(healthTipDiv);
 
     // Voeg toe na input sectie
-    const inputSection = document.querySelector('.input-section');
-    inputSection.insertAdjacentElement('afterend', loadingDiv);
-    
+    const inputSection = document.querySelector(".input-section");
+    inputSection.insertAdjacentElement("afterend", loadingDiv);
+
     // Start gezondheidstips
     startHealthTips();
 }
 
 function hideLoadingMessage() {
     stopHealthTips();
-    const loadingDiv = document.getElementById('loadingMessage');
+    const loadingDiv = document.getElementById("loadingMessage");
     if (loadingDiv) {
         loadingDiv.remove();
     }
 }
 
 function showSuccessMessage() {
-    const successDiv = document.createElement('div');
-    successDiv.id = 'successMessage';
+    const successDiv = document.createElement("div");
+    successDiv.id = "successMessage";
     successDiv.style.cssText = `
         background: rgba(40, 167, 69, 0.1);
         border: 2px solid #28a745;
@@ -205,10 +234,10 @@ function showSuccessMessage() {
         font-size: 1.2rem;
         color: #28a745;
     `;
-    successDiv.innerHTML = '✅ Recept succesvol geanalyseerd!';
+    successDiv.innerHTML = "✅ Recept succesvol geanalyseerd!";
 
-    const inputSection = document.querySelector('.input-section');
-    inputSection.insertAdjacentElement('afterend', successDiv);
+    const inputSection = document.querySelector(".input-section");
+    inputSection.insertAdjacentElement("afterend", successDiv);
 
     // Verwijder na 2 seconden
     setTimeout(() => {
@@ -220,7 +249,8 @@ function displayResults(data) {
     hideLoadingMessage();
 
     // Update recipe titel
-    document.getElementById('recipeTitle').textContent = data.recipe_title || 'Recept Analyse';
+    document.getElementById("recipeTitle").textContent =
+        data.recipe_title || "Recept Analyse";
 
     // Display nutrition summary
     displayNutritionSummary(data.total_nutrition || {});
@@ -237,52 +267,58 @@ function displayResults(data) {
     // Display swaps if available
     if (data.swaps && data.swaps.length > 0) {
         displaySwaps(data.swaps);
-        document.getElementById('swapsSection').style.display = 'block';
+        document.getElementById("swapsSection").style.display = "block";
     } else {
-        document.getElementById('swapsSection').style.display = 'none';
+        document.getElementById("swapsSection").style.display = "none";
     }
 
     // Show results met smooth scroll
-    resultsDiv.style.display = 'block';
-    resultsDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    resultsDiv.style.display = "block";
+    resultsDiv.scrollIntoView({ behavior: "smooth", block: "start" });
 
     // Toon succesmelding voor screen readers
-    const avgScore = Object.values(data.health_goals_scores || {}).reduce((a, b) => a + b, 0) / Object.keys(data.health_goals_scores || {}).length || 0;
-    announceToScreenReader(`Recept analyse compleet. Gemiddelde gezondheidsscore: ${avgScore.toFixed(1)} van de 10.`);
+    const avgScore =
+        Object.values(data.health_goals_scores || {}).reduce(
+            (a, b) => a + b,
+            0,
+        ) / Object.keys(data.health_goals_scores || {}).length || 0;
+    announceToScreenReader(
+        `Recept analyse compleet. Gemiddelde gezondheidsscore: ${avgScore.toFixed(1)} van de 10.`,
+    );
 }
 
 function displayNutritionSummary(nutrition) {
-    const container = document.getElementById('nutritionGrid');
-    container.innerHTML = '';
+    const container = document.getElementById("nutritionGrid");
+    container.innerHTML = "";
 
     const nutritionLabels = {
-        'calories': '**Energie** (kcal)',
-        'protein': '**Eiwitten** (g)',
-        'carbohydrates': '**Koolhydraten** (g)', 
-        'fiber': '**Vezels** (g)',
-        'sugar': '**Suikers** (g)',
-        'fat': '**Vetten** (g)',
-        'saturated_fat': '**Verzadigde vetten** (g)',
-        'sodium': '**Natrium** (mg)',
-        'potassium': '**Kalium** (mg)',
-        'calcium': '**Calcium** (mg)',
-        'iron': '**IJzer** (mg)',
-        'vitamin_c': '**Vitamine C** (mg)'
+        calories: "**Energie** (kcal)",
+        protein: "**Eiwitten** (g)",
+        carbohydrates: "**Koolhydraten** (g)",
+        fiber: "**Vezels** (g)",
+        sugar: "**Suikers** (g)",
+        fat: "**Vetten** (g)",
+        saturated_fat: "**Verzadigde vetten** (g)",
+        sodium: "**Natrium** (mg)",
+        potassium: "**Kalium** (mg)",
+        calcium: "**Calcium** (mg)",
+        iron: "**IJzer** (mg)",
+        vitamin_c: "**Vitamine C** (mg)",
     };
 
     Object.entries(nutritionLabels).forEach(([key, label]) => {
         if (nutrition[key] && nutrition[key] > 0) {
-            const item = document.createElement('div');
-            item.className = 'nutrition-item';
-            
-            const labelSpan = document.createElement('span');
-            labelSpan.className = 'nutrition-label';
+            const item = document.createElement("div");
+            item.className = "nutrition-item";
+
+            const labelSpan = document.createElement("span");
+            labelSpan.className = "nutrition-label";
             labelSpan.innerHTML = label;
-            
-            const valueSpan = document.createElement('span');
-            valueSpan.className = 'nutrition-value';
+
+            const valueSpan = document.createElement("span");
+            valueSpan.className = "nutrition-value";
             valueSpan.textContent = nutrition[key];
-            
+
             item.appendChild(labelSpan);
             item.appendChild(valueSpan);
             container.appendChild(item);
@@ -291,85 +327,88 @@ function displayNutritionSummary(nutrition) {
 }
 
 function displayHealthGoals(healthGoals) {
-    const container = document.getElementById('healthGoals');
-    container.innerHTML = '';
+    const container = document.getElementById("healthGoals");
+    container.innerHTML = "";
 
     const goalLabels = {
-        'general_health': 'Algemene gezondheid',
-        'weight_loss': 'Gewicht verliezen',
-        'muscle_building': 'Herstel/Spieren',
-        'energy_boost': 'Meer energie',
-        'blood_pressure': 'Bloeddruk verlagen'
+        general_health: "Algemene gezondheid",
+        weight_loss: "Gewicht verliezen",
+        muscle_building: "Herstel/Spieren",
+        energy_boost: "Meer energie",
+        blood_pressure: "Bloeddruk verlagen",
     };
 
     // Load saved order from localStorage
-    let goalOrder = JSON.parse(localStorage.getItem('healthGoalsOrder')) || Object.keys(goalLabels);
-    
+    let goalOrder =
+        JSON.parse(localStorage.getItem("healthGoalsOrder")) ||
+        Object.keys(goalLabels);
+
     // Make sure all goals are included
-    Object.keys(goalLabels).forEach(key => {
+    Object.keys(goalLabels).forEach((key) => {
         if (!goalOrder.includes(key)) {
             goalOrder.push(key);
         }
     });
 
     // Create sortable container
-    container.style.position = 'relative';
+    container.style.position = "relative";
 
     goalOrder.forEach((key, index) => {
         if (healthGoals[key]) {
-            const goalItem = document.createElement('div');
-            goalItem.className = 'goal-item';
+            const goalItem = document.createElement("div");
+            goalItem.className = "goal-item";
             goalItem.draggable = true;
             goalItem.dataset.goalKey = key;
-            goalItem.style.cursor = 'move';
-            
-            const goalHeader = document.createElement('div');
-            goalHeader.className = 'goal-header';
-            
-            const dragHandle = document.createElement('span');
-            dragHandle.className = 'drag-handle';
-            dragHandle.innerHTML = '⋮⋮';
-            dragHandle.style.cssText = 'margin-right: 10px; color: #666; cursor: move; user-select: none;';
-            
-            const goalTitle = document.createElement('span');
-            goalTitle.className = 'goal-title';
+            goalItem.style.cursor = "move";
+
+            const goalHeader = document.createElement("div");
+            goalHeader.className = "goal-header";
+
+            const dragHandle = document.createElement("span");
+            dragHandle.className = "drag-handle";
+            dragHandle.innerHTML = "⋮⋮";
+            dragHandle.style.cssText =
+                "margin-right: 10px; color: #666; cursor: move; user-select: none;";
+
+            const goalTitle = document.createElement("span");
+            goalTitle.className = "goal-title";
             goalTitle.textContent = goalLabels[key];
-            
-            const goalScore = document.createElement('span');
-            goalScore.className = 'goal-score';
+
+            const goalScore = document.createElement("span");
+            goalScore.className = "goal-score";
             goalScore.textContent = `${healthGoals[key]}/10`;
-            
+
             goalHeader.appendChild(dragHandle);
             goalHeader.appendChild(goalTitle);
             goalHeader.appendChild(goalScore);
-            
-            const progressBar = document.createElement('div');
-            progressBar.className = 'progress-bar';
-            
-            const progressFill = document.createElement('div');
-            progressFill.className = 'progress-fill';
+
+            const progressBar = document.createElement("div");
+            progressBar.className = "progress-bar";
+
+            const progressFill = document.createElement("div");
+            progressFill.className = "progress-fill";
             progressFill.style.width = `${(healthGoals[key] / 10) * 100}%`;
-            
+
             // Kleur op basis van score
             if (healthGoals[key] >= 7) {
-                progressFill.style.background = '#28a745';
+                progressFill.style.background = "#28a745";
             } else if (healthGoals[key] >= 5) {
-                progressFill.style.background = '#ffc107';
+                progressFill.style.background = "#ffc107";
             } else {
-                progressFill.style.background = '#dc3545';
+                progressFill.style.background = "#dc3545";
             }
-            
+
             progressBar.appendChild(progressFill);
-            
+
             goalItem.appendChild(goalHeader);
             goalItem.appendChild(progressBar);
-            
+
             // Add drag event listeners
-            goalItem.addEventListener('dragstart', handleDragStart);
-            goalItem.addEventListener('dragover', handleDragOver);
-            goalItem.addEventListener('drop', handleDrop);
-            goalItem.addEventListener('dragend', handleDragEnd);
-            
+            goalItem.addEventListener("dragstart", handleDragStart);
+            goalItem.addEventListener("dragover", handleDragOver);
+            goalItem.addEventListener("drop", handleDrop);
+            goalItem.addEventListener("dragend", handleDragEnd);
+
             container.appendChild(goalItem);
         }
     });
@@ -379,15 +418,15 @@ let draggedElement = null;
 
 function handleDragStart(e) {
     draggedElement = this;
-    this.style.opacity = '0.5';
-    e.dataTransfer.effectAllowed = 'move';
+    this.style.opacity = "0.5";
+    e.dataTransfer.effectAllowed = "move";
 }
 
 function handleDragOver(e) {
     if (e.preventDefault) {
         e.preventDefault();
     }
-    e.dataTransfer.dropEffect = 'move';
+    e.dataTransfer.dropEffect = "move";
     return false;
 }
 
@@ -395,49 +434,51 @@ function handleDrop(e) {
     if (e.stopPropagation) {
         e.stopPropagation();
     }
-    
+
     if (draggedElement !== this) {
         const container = this.parentNode;
-        const draggedIndex = Array.from(container.children).indexOf(draggedElement);
+        const draggedIndex = Array.from(container.children).indexOf(
+            draggedElement,
+        );
         const targetIndex = Array.from(container.children).indexOf(this);
-        
+
         if (draggedIndex < targetIndex) {
             container.insertBefore(draggedElement, this.nextSibling);
         } else {
             container.insertBefore(draggedElement, this);
         }
-        
+
         // Save new order
         saveGoalsOrder();
     }
-    
+
     return false;
 }
 
 function handleDragEnd(e) {
-    this.style.opacity = '1';
+    this.style.opacity = "1";
     draggedElement = null;
 }
 
 function saveGoalsOrder() {
-    const container = document.getElementById('healthGoals');
+    const container = document.getElementById("healthGoals");
     const goalItems = Array.from(container.children);
-    const newOrder = goalItems.map(item => item.dataset.goalKey);
-    
-    localStorage.setItem('healthGoalsOrder', JSON.stringify(newOrder));
-    console.log('Goals order saved:', newOrder);
+    const newOrder = goalItems.map((item) => item.dataset.goalKey);
+
+    localStorage.setItem("healthGoalsOrder", JSON.stringify(newOrder));
+    console.log("Goals order saved:", newOrder);
 }
 
 function printResults() {
     // Maak een printbare versie
-    const printWindow = window.open('', '_blank');
-    const resultsContent = document.getElementById('results').innerHTML;
-    
+    const printWindow = window.open("", "_blank");
+    const resultsContent = document.getElementById("results").innerHTML;
+
     const printHTML = `
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Recept Analyse - ${document.getElementById('recipeTitle').textContent}</title>
+            <title>Recept Analyse - ${document.getElementById("recipeTitle").textContent}</title>
             <style>
                 body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 20px; }
                 .print-btn { display: none; }
@@ -462,7 +503,7 @@ function printResults() {
         </body>
         </html>
     `;
-    
+
     printWindow.document.write(printHTML);
     printWindow.document.close();
     printWindow.focus();
@@ -470,7 +511,7 @@ function printResults() {
 }
 
 function animateScore(targetScore) {
-    const scoreElement = document.getElementById('healthScore');
+    const scoreElement = document.getElementById("healthScore");
     let currentScore = 0;
     const increment = targetScore / 20; // 20 stappen voor animatie
 
@@ -485,27 +526,32 @@ function animateScore(targetScore) {
 }
 
 function displayHealthExplanation(explanations) {
-    const container = document.getElementById('healthExplanation');
-    container.innerHTML = '';
+    const container = document.getElementById("healthExplanation");
+    container.innerHTML = "";
 
     if (explanations.length === 0) {
-        container.innerHTML = '<p style="font-style: italic; color: #666;">Geen gedetailleerde uitleg beschikbaar.</p>';
+        container.innerHTML =
+            '<p style="font-style: italic; color: #666;">Geen gedetailleerde uitleg beschikbaar.</p>';
         return;
     }
 
-    explanations.forEach(explanation => {
-        const item = document.createElement('div');
-        item.className = 'explanation-item';
+    explanations.forEach((explanation) => {
+        const item = document.createElement("div");
+        item.className = "explanation-item";
         item.textContent = explanation;
         container.appendChild(item);
-        
+
         // Add AI explanation for unhealthy ingredients
-        if (explanation.includes('❌ Minder gezonde ingrediënten')) {
-            const unhealthyIngredients = explanation.replace('❌ Minder gezonde ingrediënten (score 1-3): ', '');
-            
-            const aiButton = document.createElement('button');
-            aiButton.textContent = '🤖 Krijg AI uitleg waarom dit minder gezond is';
-            aiButton.className = 'ai-explanation-btn';
+        if (explanation.includes("❌ Minder gezonde ingrediënten")) {
+            const unhealthyIngredients = explanation.replace(
+                "❌ Minder gezonde ingrediënten (score 1-3): ",
+                "",
+            );
+
+            const aiButton = document.createElement("button");
+            aiButton.textContent =
+                "🤖 Krijg AI uitleg waarom dit minder gezond is";
+            aiButton.className = "ai-explanation-btn";
             aiButton.style.cssText = `
                 margin-top: 10px;
                 padding: 8px 16px;
@@ -517,27 +563,34 @@ function displayHealthExplanation(explanations) {
                 font-size: 0.9rem;
                 transition: all 0.3s ease;
             `;
-            
-            aiButton.addEventListener('click', () => loadAIExplanation(unhealthyIngredients, aiButton, 'unhealthy'));
-            aiButton.addEventListener('mouseover', () => {
-                aiButton.style.transform = 'scale(1.05)';
-                aiButton.style.boxShadow = '0 4px 15px rgba(255, 107, 107, 0.4)';
+
+            aiButton.addEventListener("click", () =>
+                loadAIExplanation(unhealthyIngredients, aiButton, "unhealthy"),
+            );
+            aiButton.addEventListener("mouseover", () => {
+                aiButton.style.transform = "scale(1.05)";
+                aiButton.style.boxShadow =
+                    "0 4px 15px rgba(255, 107, 107, 0.4)";
             });
-            aiButton.addEventListener('mouseout', () => {
-                aiButton.style.transform = 'scale(1)';
-                aiButton.style.boxShadow = 'none';
+            aiButton.addEventListener("mouseout", () => {
+                aiButton.style.transform = "scale(1)";
+                aiButton.style.boxShadow = "none";
             });
-            
+
             item.appendChild(aiButton);
         }
-        
+
         // Add AI explanation for healthy ingredients
-        if (explanation.includes('✅ Gezonde ingrediënten')) {
-            const healthyIngredients = explanation.replace('✅ Gezonde ingrediënten (score 7-10): ', '');
-            
-            const aiButton = document.createElement('button');
-            aiButton.textContent = '🌱 Ontdek waarom deze ingrediënten zo gezond zijn';
-            aiButton.className = 'ai-explanation-btn healthy-btn';
+        if (explanation.includes("✅ Gezonde ingrediënten")) {
+            const healthyIngredients = explanation.replace(
+                "✅ Gezonde ingrediënten (score 7-10): ",
+                "",
+            );
+
+            const aiButton = document.createElement("button");
+            aiButton.textContent =
+                "🌱 Ontdek waarom deze ingrediënten zo gezond zijn";
+            aiButton.className = "ai-explanation-btn healthy-btn";
             aiButton.style.cssText = `
                 margin-top: 10px;
                 padding: 8px 16px;
@@ -549,37 +602,42 @@ function displayHealthExplanation(explanations) {
                 font-size: 0.9rem;
                 transition: all 0.3s ease;
             `;
-            
-            aiButton.addEventListener('click', () => loadAIExplanation(healthyIngredients, aiButton, 'healthy'));
-            aiButton.addEventListener('mouseover', () => {
-                aiButton.style.transform = 'scale(1.05)';
-                aiButton.style.boxShadow = '0 4px 15px rgba(40, 167, 69, 0.4)';
+
+            aiButton.addEventListener("click", () =>
+                loadAIExplanation(healthyIngredients, aiButton, "healthy"),
+            );
+            aiButton.addEventListener("mouseover", () => {
+                aiButton.style.transform = "scale(1.05)";
+                aiButton.style.boxShadow = "0 4px 15px rgba(40, 167, 69, 0.4)";
             });
-            aiButton.addEventListener('mouseout', () => {
-                aiButton.style.transform = 'scale(1)';
-                aiButton.style.boxShadow = 'none';
+            aiButton.addEventListener("mouseout", () => {
+                aiButton.style.transform = "scale(1)";
+                aiButton.style.boxShadow = "none";
             });
-            
+
             item.appendChild(aiButton);
         }
     });
 }
 
-async function loadAIExplanation(ingredients, button, type = 'unhealthy') {
+async function loadAIExplanation(ingredients, button, type = "unhealthy") {
     const originalText = button.textContent;
-    button.textContent = '⏳ AI denkt na...';
+    button.textContent = "⏳ AI denkt na...";
     button.disabled = true;
-    
+
     try {
-        const endpoint = type === 'healthy' ? 'explain-healthy' : 'explain-unhealthy';
-        const response = await fetch(`/${endpoint}?ingredients=${encodeURIComponent(ingredients)}`);
+        const endpoint =
+            type === "healthy" ? "explain-healthy" : "explain-unhealthy";
+        const response = await fetch(
+            `/${endpoint}?ingredients=${encodeURIComponent(ingredients)}`,
+        );
         const data = await response.json();
-        
+
         // Create explanation div
-        const explanationDiv = document.createElement('div');
-        explanationDiv.className = 'ai-explanation';
-        
-        if (type === 'healthy') {
+        const explanationDiv = document.createElement("div");
+        explanationDiv.className = "ai-explanation";
+
+        if (type === "healthy") {
             explanationDiv.style.cssText = `
                 margin-top: 15px;
                 padding: 15px;
@@ -604,30 +662,30 @@ async function loadAIExplanation(ingredients, button, type = 'unhealthy') {
                 box-shadow: 0 2px 10px rgba(255, 107, 107, 0.1);
             `;
         }
-        
-        const title = document.createElement('div');
-        const icon = type === 'healthy' ? '🌱' : '🤖';
+
+        const title = document.createElement("div");
+        const icon = type === "healthy" ? "🌱" : "🤖";
         title.innerHTML = `<strong>${icon} AI Voedingsexpert:</strong>`;
-        title.style.marginBottom = '10px';
-        
-        const content = document.createElement('div');
+        title.style.marginBottom = "10px";
+
+        const content = document.createElement("div");
         content.textContent = data.explanation;
-        
+
         explanationDiv.appendChild(title);
         explanationDiv.appendChild(content);
-        
+
         // Replace button with explanation
         button.parentNode.replaceChild(explanationDiv, button);
-        
     } catch (error) {
-        console.error('AI explanation failed:', error);
-        button.textContent = '❌ AI uitleg mislukt';
-        button.style.background = '#dc3545';
-        
-        const originalBackground = type === 'healthy' 
-            ? 'linear-gradient(45deg, #28a745, #20c997)' 
-            : 'linear-gradient(45deg, #ff6b6b, #ee5a24)';
-        
+        console.error("AI explanation failed:", error);
+        button.textContent = "❌ AI uitleg mislukt";
+        button.style.background = "#dc3545";
+
+        const originalBackground =
+            type === "healthy"
+                ? "linear-gradient(45deg, #28a745, #20c997)"
+                : "linear-gradient(45deg, #ff6b6b, #ee5a24)";
+
         setTimeout(() => {
             button.textContent = originalText;
             button.disabled = false;
@@ -637,45 +695,49 @@ async function loadAIExplanation(ingredients, button, type = 'unhealthy') {
 }
 
 function displayAllIngredients(ingredients) {
-    const container = document.getElementById('allIngredients');
-    container.innerHTML = '';
+    const container = document.getElementById("allIngredients");
+    container.innerHTML = "";
 
     if (ingredients.length === 0) {
-        container.innerHTML = '<p style="font-style: italic; color: #666;">Geen ingrediënten gevonden.</p>';
+        container.innerHTML =
+            '<p style="font-style: italic; color: #666;">Geen ingrediënten gevonden.</p>';
         return;
     }
 
     ingredients.forEach((ingredient, index) => {
-        const item = document.createElement('div');
-        item.className = 'ingredient-item';
+        const item = document.createElement("div");
+        item.className = "ingredient-item";
 
         // Categoriseer op basis van health score
         if (ingredient.health_score >= 7) {
-            item.classList.add('healthy');
+            item.classList.add("healthy");
         } else if (ingredient.health_score >= 4) {
-            item.classList.add('neutral');
+            item.classList.add("neutral");
         } else {
-            item.classList.add('unhealthy');
+            item.classList.add("unhealthy");
         }
 
-        const info = document.createElement('div');
-        info.className = 'ingredient-info';
+        const info = document.createElement("div");
+        info.className = "ingredient-info";
 
-        const name = document.createElement('div');
-        name.className = 'ingredient-name';
+        const name = document.createElement("div");
+        name.className = "ingredient-name";
         name.textContent = ingredient.name;
 
         // Verbeterde details met hoeveelheid info
-        const details = document.createElement('div');
-        details.className = 'ingredient-details';
-        
-        let detailText = '';
+        const details = document.createElement("div");
+        details.className = "ingredient-details";
+
+        let detailText = "";
         if (ingredient.amount && ingredient.unit) {
             detailText = `**${ingredient.amount} ${ingredient.unit}** - ${ingredient.name}`;
         } else {
             detailText = ingredient.original_line;
         }
-        details.innerHTML = detailText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+        details.innerHTML = detailText.replace(
+            /\*\*(.*?)\*\*/g,
+            "<strong>$1</strong>",
+        );
 
         info.appendChild(name);
         info.appendChild(details);
@@ -683,51 +745,59 @@ function displayAllIngredients(ingredients) {
         // Voedingswaarden per ingrediënt
         if (ingredient.nutrition) {
             const nutrition = ingredient.nutrition;
-            const nutritionDiv = document.createElement('div');
-            nutritionDiv.className = 'ingredient-nutrition';
-            
+            const nutritionDiv = document.createElement("div");
+            nutritionDiv.className = "ingredient-nutrition";
+
             const nutritionItems = [];
-            if (nutrition.calories > 0) nutritionItems.push(`Energie: ${nutrition.calories} kcal/100g`);
-            if (nutrition.protein > 0) nutritionItems.push(`Eiwitten: ${nutrition.protein}g`);
-            if (nutrition.fiber > 0) nutritionItems.push(`Vezels: ${nutrition.fiber}g`);
-            if (nutrition.sugar > 0) nutritionItems.push(`Suikers: ${nutrition.sugar}g`);
-            
+            if (nutrition.calories > 0)
+                nutritionItems.push(`Energie: ${nutrition.calories} kcal/100g`);
+            if (nutrition.protein > 0)
+                nutritionItems.push(`Eiwitten: ${nutrition.protein}g`);
+            if (nutrition.fiber > 0)
+                nutritionItems.push(`Vezels: ${nutrition.fiber}g`);
+            if (nutrition.sugar > 0)
+                nutritionItems.push(`Suikers: ${nutrition.sugar}g`);
+
             if (nutritionItems.length > 0) {
-                nutritionDiv.innerHTML = `📊 ${nutritionItems.join(' • ')}`;
+                nutritionDiv.innerHTML = `📊 ${nutritionItems.join(" • ")}`;
                 info.appendChild(nutritionDiv);
             }
         }
 
         // Gezondheidsweetje (alleen als het een echte tip is, niet de generieke tekst)
-        if (ingredient.health_fact && ingredient.health_fact !== "Dit ingrediënt draagt bij aan een gevarieerd en uitgebalanceerd voedingspatroon.") {
-            const healthFact = document.createElement('div');
-            healthFact.className = 'health-fact';
+        if (
+            ingredient.health_fact &&
+            ingredient.health_fact !==
+                "Dit ingrediënt draagt bij aan een gevarieerd en uitgebalanceerd voedingspatroon."
+        ) {
+            const healthFact = document.createElement("div");
+            healthFact.className = "health-fact";
             healthFact.innerHTML = `💡 ${ingredient.health_fact}`;
             info.appendChild(healthFact);
         }
 
         // Toon substitutie als beschikbaar
         if (ingredient.substitution) {
-            const substitution = document.createElement('div');
-            substitution.className = 'substitution';
+            const substitution = document.createElement("div");
+            substitution.className = "substitution";
             substitution.textContent = `🔄 Vervang door: ${ingredient.substitution}`;
             info.appendChild(substitution);
         }
 
-        const badge = document.createElement('div');
-        badge.className = 'health-badge';
+        const badge = document.createElement("div");
+        badge.className = "health-badge";
         badge.textContent = `${ingredient.health_score}/10`;
 
         // Kleur badge op basis van score
         if (ingredient.health_score >= 7) {
-            badge.style.color = '#28a745';
-            badge.style.borderColor = '#28a745';
+            badge.style.color = "#28a745";
+            badge.style.borderColor = "#28a745";
         } else if (ingredient.health_score >= 4) {
-            badge.style.color = '#ffc107';
-            badge.style.borderColor = '#ffc107';
+            badge.style.color = "#ffc107";
+            badge.style.borderColor = "#ffc107";
         } else {
-            badge.style.color = '#dc3545';
-            badge.style.borderColor = '#dc3545';
+            badge.style.color = "#dc3545";
+            badge.style.borderColor = "#dc3545";
         }
 
         item.appendChild(info);
@@ -737,23 +807,23 @@ function displayAllIngredients(ingredients) {
 }
 
 function displaySwaps(swaps) {
-    const container = document.getElementById('swapsList');
-    container.innerHTML = '';
+    const container = document.getElementById("swapsList");
+    container.innerHTML = "";
 
-    swaps.forEach(swap => {
-        const item = document.createElement('div');
-        item.className = 'swap-item';
+    swaps.forEach((swap) => {
+        const item = document.createElement("div");
+        item.className = "swap-item";
 
-        const fromDiv = document.createElement('div');
-        fromDiv.className = 'swap-from';
-        fromDiv.innerHTML = `❌ ${swap.ongezond_ingredient} <span style="font-size: 0.9rem; color: #666;">(score: ${swap.health_score || 'onbekend'}/10)</span>`;
+        const fromDiv = document.createElement("div");
+        fromDiv.className = "swap-from";
+        fromDiv.innerHTML = `❌ ${swap.ongezond_ingredient} <span style="font-size: 0.9rem; color: #666;">(score: ${swap.health_score || "onbekend"}/10)</span>`;
 
-        const arrowDiv = document.createElement('div');
-        arrowDiv.className = 'swap-arrow';
-        arrowDiv.textContent = '⬇️ Vervang door:';
+        const arrowDiv = document.createElement("div");
+        arrowDiv.className = "swap-arrow";
+        arrowDiv.textContent = "⬇️ Vervang door:";
 
-        const toDiv = document.createElement('div');
-        toDiv.className = 'swap-to';
+        const toDiv = document.createElement("div");
+        toDiv.className = "swap-to";
         toDiv.innerHTML = `✅ <strong>${swap.vervang_door}</strong>`;
 
         item.appendChild(fromDiv);
@@ -763,18 +833,18 @@ function displaySwaps(swaps) {
     });
 }
 
-function showError(message, title = 'Er is een fout opgetreden') {
+function showError(message, title = "Er is een fout opgetreden") {
     hideLoadingMessage();
 
     // Update error titel als deze bestaat
-    const errorTitle = document.querySelector('#error h3');
+    const errorTitle = document.querySelector("#error h3");
     if (errorTitle) {
         errorTitle.textContent = title;
     }
 
     errorMessage.textContent = message;
-    errorDiv.style.display = 'block';
-    errorDiv.scrollIntoView({ behavior: 'smooth' });
+    errorDiv.style.display = "block";
+    errorDiv.scrollIntoView({ behavior: "smooth" });
 
     // Focus op error voor screen readers
     errorDiv.focus();
@@ -784,23 +854,23 @@ function showError(message, title = 'Er is een fout opgetreden') {
 }
 
 function hideError() {
-    errorDiv.style.display = 'none';
+    errorDiv.style.display = "none";
 }
 
 function hideResults() {
-    resultsDiv.style.display = 'none';
+    resultsDiv.style.display = "none";
 }
 
 // Toegankelijkheidsfunctie voor screen readers
 function announceToScreenReader(message) {
-    const announcement = document.createElement('div');
-    announcement.setAttribute('aria-live', 'polite');
-    announcement.setAttribute('aria-atomic', 'true');
-    announcement.style.position = 'absolute';
-    announcement.style.left = '-10000px';
-    announcement.style.width = '1px';
-    announcement.style.height = '1px';
-    announcement.style.overflow = 'hidden';
+    const announcement = document.createElement("div");
+    announcement.setAttribute("aria-live", "polite");
+    announcement.setAttribute("aria-atomic", "true");
+    announcement.style.position = "absolute";
+    announcement.style.left = "-10000px";
+    announcement.style.width = "1px";
+    announcement.style.height = "1px";
+    announcement.style.overflow = "hidden";
     announcement.textContent = message;
 
     document.body.appendChild(announcement);
@@ -811,22 +881,22 @@ function announceToScreenReader(message) {
 }
 
 // Utility function voor debugging
-window.testAnalysis = function() {
+window.testAnalysis = function () {
     const testUrl = exampleUrls[Math.floor(Math.random() * exampleUrls.length)];
     recipeUrlInput.value = testUrl;
     analyzeRecipe();
 };
 
 // Keyboard shortcuts voor senioren
-document.addEventListener('keydown', (e) => {
+document.addEventListener("keydown", (e) => {
     // Alt + A voor analyseren
-    if (e.altKey && e.key.toLowerCase() === 'a') {
+    if (e.altKey && e.key.toLowerCase() === "a") {
         e.preventDefault();
         analyzeRecipe();
     }
 
     // Escape om error te sluiten
-    if (e.key === 'Escape') {
+    if (e.key === "Escape") {
         hideError();
     }
 });
@@ -834,22 +904,22 @@ document.addEventListener('keydown', (e) => {
 // Laad configuratie en gezondheidstips
 async function loadConfiguration() {
     try {
-        const configResponse = await fetch('/static/config.json');
+        const configResponse = await fetch("/static/config.json");
         if (configResponse.ok) {
             const loadedConfig = await configResponse.json();
             config = { ...config, ...loadedConfig }; // Merge met defaults
-            
+
             // Update URL examples uit config
             if (config.examples && config.examples.length > 0) {
                 exampleUrls = config.examples;
             }
-            
+
             // Stel default URL in uit config
             const defaultUrl = config.ui.default_url || exampleUrls[0];
             recipeUrlInput.value = defaultUrl;
         }
     } catch (error) {
-        console.log('Configuratie laden mislukt, gebruik standaardwaarden');
+        console.log("Configuratie laden mislukt, gebruik standaardwaarden");
         // Vul default URL in als fallback
         recipeUrlInput.value = exampleUrls[0];
     }
@@ -857,53 +927,56 @@ async function loadConfiguration() {
 
 async function loadHealthTips() {
     try {
-        const tipsResponse = await fetch('/static/health_tips.json');
+        const tipsResponse = await fetch("/static/health_tips.json");
         if (tipsResponse.ok) {
             const tipsData = await tipsResponse.json();
             healthTips = tipsData.tips;
         }
     } catch (error) {
-        console.log('Gezondheidstips laden mislukt');
+        console.log("Gezondheidstips laden mislukt");
         healthTips = [
             "Drink voldoende water voor uw gezondheid.",
             "Eet dagelijks groenten en fruit.",
-            "Bewegen is goed voor uw lichaam en geest."
+            "Bewegen is goed voor uw lichaam en geest.",
         ];
     }
 }
 
 function showHealthTip() {
     if (!config.health_tips.show_tips || healthTips.length === 0) return;
-    
-    const tipContainer = document.getElementById('healthTip');
+
+    const tipContainer = document.getElementById("healthTip");
     if (!tipContainer) return;
-    
+
     // Fade out
-    tipContainer.style.opacity = '0';
-    
+    tipContainer.style.opacity = "0";
+
     setTimeout(() => {
         // Update tekst
         tipContainer.textContent = healthTips[currentTipIndex];
         currentTipIndex = (currentTipIndex + 1) % healthTips.length;
-        
+
         // Fade in
-        tipContainer.style.opacity = '1';
+        tipContainer.style.opacity = "1";
     }, config.tips_fade_duration_ms || 500);
 }
 
 function startHealthTips() {
     if (!config.health_tips.show_tips || healthTips.length === 0) return;
-    
+
     // Stop bestaande interval
     if (tipInterval) {
         clearInterval(tipInterval);
     }
-    
+
     // Toon eerste tip direct
     showHealthTip();
-    
+
     // Start interval
-    tipInterval = setInterval(showHealthTip, config.health_tips.interval_seconds * 1000);
+    tipInterval = setInterval(
+        showHealthTip,
+        config.health_tips.interval_seconds * 1000,
+    );
 }
 
 function stopHealthTips() {
@@ -911,16 +984,32 @@ function stopHealthTips() {
         clearInterval(tipInterval);
         tipInterval = null;
     }
-    
-    const tipContainer = document.getElementById('healthTip');
+
+    const tipContainer = document.getElementById("healthTip");
     if (tipContainer) {
-        tipContainer.style.display = 'none';
+        tipContainer.style.display = "none";
     }
 }
 
 // Toon shortcuts info en laad data
-window.addEventListener('load', async () => {
-    console.log('Sneltoetsen: Alt+A = Analyseren, Escape = Fout sluiten');
+window.addEventListener("load", async () => {
+    console.log("Sneltoetsen: Alt+A = Analyseren, Escape = Fout sluiten");
     await loadConfiguration();
     await loadHealthTips();
 });
+
+// Laad configuratie vanuit config.json
+async function loadConfiguration() {
+    try {
+        const configResponse = await fetch("/static/config.json");
+        if (configResponse.ok) {
+            const loadedConfig = await configResponse.json();
+            config = { ...config, ...loadedConfig }; // Merge met de geladen configuratie
+        }
+    } catch (error) {
+        console.log("Configuratie laden mislukt, gebruik standaardwaarden");
+    }
+}
+
+// Zorg dat deze functie wordt aangeroepen bij het laden van de pagina
+window.addEventListener("load", loadConfiguration);
