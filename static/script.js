@@ -166,8 +166,8 @@ let hideIconSVG = null;
 let showIconSVG = null;
 
 async function loadIcons() {
-    hideIconSVG = await loadSVGIcon('/icons/hide_icon.svg');
-    showIconSVG = await loadSVGIcon('/icons/show_icon.svg');
+    hideIconSVG = await loadSVGIcon('/static/hide_icon.svg');
+    showIconSVG = await loadSVGIcon('/static/show_icon.svg');
 }
 
 function updateGoalsDisplay() {
@@ -658,7 +658,15 @@ async function analyzeRecipe() {
         displayResults(safeData);
     } catch (error) {
         console.error("Analysis Error:", error);
-        let errorMessage = error.message || error.detail || "Onbekende fout";
+        let errorMessage = "";
+        
+        if (error && typeof error === 'object') {
+            errorMessage = error.message || error.detail || "Onbekende fout";
+        } else if (typeof error === 'string') {
+            errorMessage = error;
+        } else {
+            errorMessage = "Onbekende fout";
+        }
         let userMessage = "";
         let errorTitle = "Analyse fout";
 
@@ -679,7 +687,7 @@ async function analyzeRecipe() {
             errorMessage.includes("geen ingrediënten") ||
             errorMessage.includes("Geen ingrediënten")
         ) {
-            userMessage = "Geen ingrediënten gevonden. Dit kan komen door:\\n• Website blokkeert automatische toegang\\n• Pagina laadt te langzaam\\n• URL is geen receptpagina\\n\\nProbeer een andere recept-URL.";
+            userMessage = "Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen receptpagina\n\nProbeer een andere recept-URL.";
             errorTitle = "Geen ingrediënten gevonden";
         } else if (errorMessage.includes("tijdelijk niet beschikbaar")) {
             userMessage = "De analyseservice is tijdelijk niet beschikbaar. Dit kan komen door serveronderhoud. Probeer het over een paar minuten opnieuw.";

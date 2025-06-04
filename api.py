@@ -83,7 +83,6 @@ def validate_url_format(url: str) -> bool:
 
 # Statische bestanden serveren
 app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/icons", StaticFiles(directory="icons"), name="icons")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
