@@ -117,12 +117,12 @@ async function analyzeRecipe() {
         const activeTab = document.querySelector('.tab-pane.active');
         const isUrlTab = activeTab.id === 'url-tab';
 
-    let inputData = '';
-    let analysisType = '';
+        let inputData = '';
+        let analysisType = '';
 
-    if (isUrlTab) {
-        inputData = recipeUrlInput.value.trim();
-        analysisType = 'url';
+        if (isUrlTab) {
+            inputData = recipeUrlInput.value.trim();
+            analysisType = 'url';
 
         if (!inputData) {
             showError("Voer eerst een recept URL in", "Geen URL ingevuld");
