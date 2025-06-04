@@ -159,22 +159,20 @@ async function analyzeRecipe() {
             }
         }
 
-    // UI updates voor loading state - meer duidelijk voor senioren
-    analyzeBtn.disabled = true;
-    btnText.textContent = "Recept wordt geanalyseerd...";
-    loader.style.display = "block";
-    hideError();
-    hideResults();
+        // UI updates voor loading state - meer duidelijk voor senioren
+        analyzeBtn.disabled = true;
+        btnText.textContent = "Recept wordt geanalyseerd...";
+        loader.style.display = "block";
+        hideError();
+        hideResults();
 
-    // Toon vriendelijke loading bericht
-    showLoadingMessage();
+        // Toon vriendelijke loading bericht
+        showLoadingMessage();
 
-    // Add progress steps
-    updateLoadingProgress("Pagina ophalen...", 1);
-    setTimeout(() => updateLoadingProgress("Ingrediënten detecteren...", 2), 2000);
-    setTimeout(() => updateLoadingProgress("Voedingswaarden analyseren...", 3), 4000);
-
-    try {
+        // Add progress steps
+        updateLoadingProgress("Pagina ophalen...", 1);
+        setTimeout(() => updateLoadingProgress("Ingrediënten detecteren...", 2), 2000);
+        setTimeout(() => updateLoadingProgress("Voedingswaarden analyseren...", 3), 4000);
         let response;
 
         if (analysisType === 'url') {
