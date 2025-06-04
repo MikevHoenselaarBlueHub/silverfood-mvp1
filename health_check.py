@@ -25,7 +25,10 @@ def check_dependencies():
     missing = []
     for package in required_packages:
         try:
-            importlib.import_module(package)
+            if package == 'beautifulsoup4':
+                importlib.import_module('bs4')
+            else:
+                importlib.import_module(package)
             print(f"✅ {package} - OK")
         except ImportError:
             print(f"❌ {package} - MISSING")
@@ -37,14 +40,15 @@ def check_chrome_selenium():
     """Check Selenium en Chrome setup"""
     try:
         import shutil
-        chrome = shutil.which('chromium') or shutil.which('chrome')
+        chrome = shutil.which('chromium') or shutil.which('chrome') or shutil.which('google-chrome')
         chromedriver = shutil.which('chromedriver')
         
         print(f"🌐 Chrome binary: {'✅' if chrome else '❌'} {chrome or 'Not found'}")
         print(f"🔧 ChromeDriver: {'✅' if chromedriver else '❌'} {chromedriver or 'Not found'}")
         
         return bool(chrome and chromedriver)
-    except:
+    except Exception as e:
+        print(f"❌ Selenium check failed: {e}")
         return False
 
 def check_config_files():
@@ -59,6 +63,33 @@ def check_config_files():
             all_exist = False
     
     return all_exist
+
+def check_port_availability():
+    """Check of poort 5000 beschikbaar is"""
+    import socket
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('0.0.0.0', 5000))
+            print("🔌 Port 5000: ✅ Available")
+            return True
+    except OSError:
+        print("🔌 Port 5000: ❌ In use")
+        return False
+
+def check_api_endpoints():
+    """Test of de API endpoints bereikbaar zijn"""
+    try:
+        import requests
+        response = requests.get('http://localhost:5000/health', timeout=5)
+        if response.status_code == 200:
+            print("🌐 API Health endpoint: ✅ Responding")
+            return True
+        else:
+            print(f"🌐 API Health endpoint: ❌ Status {response.status_code}")
+            return False
+    except Exception as e:
+        print(f"🌐 API Health endpoint: ❌ Not responding ({e})")
+        return False
 
 def main():
     print("🍽️ Silverfood API - Health Check")
@@ -75,13 +106,18 @@ def main():
     if not deps_ok:
         issues.append(f"Missing packages: {', '.join(missing)}")
     
-    # Check Selenium
-    if not check_chrome_selenium():
-        issues.append("Chrome/ChromeDriver not properly configured")
+    # Check Selenium (optional)
+    selenium_ok = check_chrome_selenium()
+    if not selenium_ok:
+        print("⚠️  Selenium/Chrome not available - will use fallback scraping")
     
     # Check config files
     if not check_config_files():
         issues.append("Missing configuration files")
+    
+    # Check port
+    if not check_port_availability():
+        issues.append("Port 5000 not available")
     
     print("\n" + "=" * 40)
     if issues:
@@ -92,6 +128,7 @@ def main():
         return False
     else:
         print("✅ All checks passed! API should work correctly.")
+        print("\n🚀 To start the server: python startup.py")
         return True
 
 if __name__ == "__main__":

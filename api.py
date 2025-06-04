@@ -401,7 +401,7 @@ async def get_ai_explanation(ingredients: str, explanation_type: str):
         # OpenAI API key from environment variables
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            logger.error("OpenAI API key not found in environment variables")
+            logger.info("OpenAI API key not configured - using fallback explanations")
             fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
             return {"explanation": fallback_msg}
 

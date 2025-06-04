@@ -1,8 +1,17 @@
 // Content script for Silverfood Chrome Extension
 class SilverfoodContentScript {
     constructor() {
-        this.apiUrl = 'https://your-replit-app.replit.app';
+        // Dynamic API URL detection
+        this.apiUrl = this.detectApiUrl();
         this.init();
+    }
+
+    detectApiUrl() {
+        // Try to get from extension storage or use current origin
+        if (window.location.origin.includes('replit')) {
+            return window.location.origin;
+        }
+        return 'http://localhost:5000';  // Development fallback
     }
 
     init() {

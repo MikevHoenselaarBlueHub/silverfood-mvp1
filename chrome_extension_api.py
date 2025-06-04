@@ -5,7 +5,15 @@ import json
 import logging
 from typing import Dict, Any
 from analyse import analyse
-import debug_helper
+try:
+    import debug_helper
+    debug = debug_helper
+except ImportError:
+    # Fallback debug object
+    class FallbackDebug:
+        def log_request(self, *args): pass
+        logger = logging.getLogger(__name__)
+    debug = FallbackDebug()
 
 logger = logging.getLogger(__name__)
 

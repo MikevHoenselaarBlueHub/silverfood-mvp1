@@ -21,9 +21,13 @@ try:
     from selenium.webdriver.support import expected_conditions as EC
     from selenium.common.exceptions import TimeoutException, WebDriverException
     SELENIUM_AVAILABLE = True
-except ImportError:
+    logger.info("Selenium is available")
+except ImportError as e:
     SELENIUM_AVAILABLE = False
-    logging.warning("Selenium not available - fallback to requests only")
+    logger.warning(f"Selenium not available - fallback to requests only: {e}")
+except Exception as e:
+    SELENIUM_AVAILABLE = False
+    logger.warning(f"Selenium setup failed - fallback to requests only: {e}")
 
 # Configure logging
 logging.basicConfig(

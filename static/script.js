@@ -1153,18 +1153,4 @@ window.addEventListener("load", async () => {
     }
 });
 
-// Laad configuratie vanuit config.json
-async function loadConfiguration() {
-    try {
-        const configResponse = await fetch("/static/config.json");
-        if (configResponse.ok) {
-            const loadedConfig = await configResponse.json();
-            config = { ...config, ...loadedConfig }; // Merge met de geladen configuratie
-        }
-    } catch (error) {
-        console.log("Configuratie laden mislukt, gebruik standaardwaarden");
-    }
-}
-
-// Zorg dat deze functie wordt aangeroepen bij het laden van de pagina
-window.addEventListener("load", loadConfiguration);
+// Configuration loading is already handled above in the main load event listener

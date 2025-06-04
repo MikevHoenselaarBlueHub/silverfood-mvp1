@@ -1,7 +1,8 @@
 // Popup script for Silverfood Chrome Extension
 class SilverfoodPopup {
     constructor() {
-        this.apiUrl = window.location.origin;
+        // Use current page's origin or fallback to localhost for development
+        this.apiUrl = window.location.origin.includes('replit') ? window.location.origin : 'http://localhost:5000';
         this.init();
     }
 
