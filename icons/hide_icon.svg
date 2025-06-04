@@ -1,10 +1,5 @@
 
-<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <path d="M2 2L62 62" stroke="#e74c3c" stroke-width="4"/>
-  <path d="M32 16C18 16 8 32 8 32C8 32 18 48 32 48C46 48 56 32 56 32C56 32 46 16 32 16Z" stroke="#e74c3c" stroke-width="4"/>
-  <circle cx="32" cy="32" r="8" fill="#e74c3c"/>
-</svg>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
-  <path d="M2.22 2.22a.75.75 0 0 1 1.06 0L12 10.94l8.72-8.72a.75.75 0 1 1 1.06 1.06L13.06 12l8.72 8.72a.75.75 0 1 1-1.06 1.06L12 13.06l-8.72 8.72a.75.75 0 0 1-1.06-1.06L10.94 12 2.22 3.28a.75.75 0 0 1 0-1.06Z"/>
-  <path d="M3.53 2.47a.75.75 0 0 0-1.06 1.06l18 18a.75.75 0 1 0 1.06-1.06l-18-18ZM12 6a6 6 0 0 1 6 6c0 1.07-.28 2.07-.77 2.94l1.46 1.46A8.5 8.5 0 0 0 20.5 12a8.5 8.5 0 0 0-17 0c0 1.55.42 3 1.15 4.26l1.46-1.46A6 6 0 0 1 12 6Z"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
 </svg>

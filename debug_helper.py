@@ -230,3 +230,59 @@ debug = DebugHelper(enable_debug=True)
 
 # Auto-initialize debug folder
 init_debug_folder()
+import json
+import time
+import logging
+from typing import Dict, Any
+
+logger = logging.getLogger(__name__)
+
+class DebugHelper:
+    def __init__(self):
+        self.debug_enabled = True
+        
+    def log_scraping_attempt(self, url: str, method: str, success: bool, ingredient_count: int):
+        """Log scraping attempt"""
+        if self.debug_enabled:
+            logger.info(f"Scraping attempt: {method} on {url} - Success: {success}, Ingredients: {ingredient_count}")
+    
+    def log_request(self, url: str, method: str, headers: Dict[str, str]):
+        """Log HTTP request"""
+        if self.debug_enabled:
+            logger.debug(f"HTTP {method} request to {url}")
+    
+    def log_response(self, response, duration: float):
+        """Log HTTP response"""
+        if self.debug_enabled:
+            logger.debug(f"HTTP response {response.status_code} in {duration:.2f}s")
+    
+    def save_debug_html(self, html_content: str, url: str, method: str):
+        """Save debug HTML for analysis"""
+        if self.debug_enabled:
+            try:
+                import os
+                from urllib.parse import urlparse
+                
+                # Create debug directory if it doesn't exist
+                os.makedirs("debug", exist_ok=True)
+                
+                # Create filename
+                domain = urlparse(url).netloc.replace("www.", "")
+                timestamp = int(time.time())
+                filename = f"debug/debug_html_{domain}_{method}_{timestamp}.html"
+                
+                # Save HTML content
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(html_content)
+                    
+                logger.debug(f"Saved debug HTML to {filename}")
+            except Exception as e:
+                logger.error(f"Failed to save debug HTML: {e}")
+    
+    def log_selenium_action(self, action: str, details: str):
+        """Log Selenium action"""
+        if self.debug_enabled:
+            logger.debug(f"Selenium {action}: {details}")
+
+# Create global debug instance
+debug = DebugHelper()
