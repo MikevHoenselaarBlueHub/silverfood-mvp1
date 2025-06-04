@@ -1,3 +1,281 @@
+
+// Language support
+let currentLanguage = 'nl';
+let translations = {};
+
+// Load language file
+async function loadLanguage(lang = 'nl') {
+    try {
+        const response = await fetch('/static/lang.json');
+        if (response.ok) {
+            translations = await response.json();
+            currentLanguage = lang;
+            updateUILanguage();
+        }
+    } catch (error) {
+        console.log('Language loading failed, using defaults');
+    }
+}
+
+function t(key) {
+    const keys = key.split('.');
+    let value = translations[currentLanguage];
+    
+    for (const k of keys) {
+        if (value && typeof value === 'object') {
+            value = value[k];
+        } else {
+            break;
+        }
+    }
+    
+    return value || key;
+}
+
+function updateUILanguage() {
+    // Update static text elements
+    const elements = {
+        'recipe-analysis-title': t('recipe_analysis'),
+        'url-tab-btn': t('url_tab'),
+        'text-tab-btn': t('text_tab'),
+        'recipe-url-label': t('recipe_url'),
+        'recipe-text-label': t('recipe_text'),
+        'analyze-btn-text': t('analyze_recipe'),
+        'nutrition-title': t('nutrition_per_portion'),
+        'health-goals-title': t('health_goals'),
+        'health-explanation-title': t('how_we_calculate'),
+        'ingredients-title': t('all_ingredients'),
+        'swaps-title': t('recommended_swaps')
+    };
+
+    Object.entries(elements).forEach(([id, text]) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = text;
+        }
+    });
+}
+
+// Portions calculator
+let currentPortions = 4;
+let originalNutrition = {};
+
+function createPortionsControl() {
+    return `
+        <div class="portions-control">
+            <label class="portions-label" for="portions-slider">${t('portions')}:</label>
+            <input type="range" 
+                   id="portions-slider" 
+                   class="portions-slider"
+                   min="1" 
+                   max="12" 
+                   value="4"
+                   aria-label="${t('portions')}"
+                   title="Stel het aantal personen in"
+                   oninput="updatePortions(this.value)">
+            <span class="portions-display" id="portions-display">4</span>
+        </div>
+    `;
+}
+
+function updatePortions(newPortions) {
+    currentPortions = parseInt(newPortions);
+    document.getElementById('portions-display').textContent = currentPortions;
+    
+    if (Object.keys(originalNutrition).length > 0) {
+        updateNutritionDisplay();
+    }
+}
+
+function updateNutritionDisplay() {
+    const nutritionGrid = document.getElementById('nutritionGrid');
+    if (!nutritionGrid || !originalNutrition) return;
+    
+    const portionMultiplier = currentPortions / 4; // Assuming original is for 4 people
+    
+    let nutritionHtml = '';
+    const nutritionKeys = {
+        'calories': t('calories'),
+        'protein': t('protein'),
+        'carbs': t('carbs'),
+        'fat': t('fat'),
+        'fiber': t('fiber')
+    };
+    
+    Object.entries(nutritionKeys).forEach(([key, label]) => {
+        if (originalNutrition[key]) {
+            const adjustedValue = Math.round(originalNutrition[key] * portionMultiplier);
+            const unit = key === 'calories' ? '' : 'g';
+            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">${label}</span><span class="nutrition-value">${adjustedValue}${unit}</span></div>`;
+        }
+    });
+    
+    nutritionGrid.innerHTML = nutritionHtml;
+}
+
+// Goal hiding functionality
+let hiddenGoals = JSON.parse(localStorage.getItem('hiddenHealthGoals')) || [];
+
+function saveHiddenGoals() {
+    localStorage.setItem('hiddenHealthGoals', JSON.stringify(hiddenGoals));
+}
+
+function toggleGoalVisibility(goalName) {
+    const index = hiddenGoals.indexOf(goalName);
+    if (index > -1) {
+        hiddenGoals.splice(index, 1);
+    } else {
+        hiddenGoals.push(goalName);
+    }
+    saveHiddenGoals();
+    updateGoalsDisplay();
+}
+
+function updateGoalsDisplay() {
+    const allGoals = document.querySelectorAll('.goal-item');
+    const visibleGoals = [];
+    const hiddenGoalsElements = [];
+    
+    allGoals.forEach(goal => {
+        const titleElement = goal.querySelector('.goal-title');
+        const goalName = titleElement ? titleElement.textContent.trim() : '';
+        
+        if (hiddenGoals.includes(goalName)) {
+            goal.classList.add('hidden');
+            hiddenGoalsElements.push(goal);
+        } else {
+            goal.classList.remove('hidden');
+            visibleGoals.push(goal);
+        }
+    });
+    
+    // Show/hide toggle button
+    updateHiddenGoalsToggle();
+}
+
+function updateHiddenGoalsToggle() {
+    const container = document.getElementById('healthGoals');
+    if (!container) return;
+    
+    let toggleButton = document.getElementById('hidden-goals-toggle');
+    let hiddenSection = document.getElementById('hidden-goals-section');
+    
+    if (hiddenGoals.length > 0) {
+        if (!toggleButton) {
+            toggleButton = document.createElement('div');
+            toggleButton.id = 'hidden-goals-toggle';
+            toggleButton.className = 'hidden-goals-toggle';
+            toggleButton.onclick = toggleHiddenGoalsSection;
+            container.appendChild(toggleButton);
+            
+            hiddenSection = document.createElement('div');
+            hiddenSection.id = 'hidden-goals-section';
+            hiddenSection.className = 'hidden-goals-section';
+            hiddenSection.style.display = 'none';
+            container.appendChild(hiddenSection);
+        }
+        
+        toggleButton.textContent = t('show_hidden_goals');
+        toggleButton.title = `${hiddenGoals.length} verborgen doelen bekijken`;
+    } else {
+        if (toggleButton) toggleButton.remove();
+        if (hiddenSection) hiddenSection.remove();
+    }
+}
+
+function toggleHiddenGoalsSection() {
+    const section = document.getElementById('hidden-goals-section');
+    const button = document.getElementById('hidden-goals-toggle');
+    
+    if (!section || !button) return;
+    
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        button.textContent = t('hide_hidden_goals');
+        
+        // Move hidden goals to section
+        const hiddenGoalElements = document.querySelectorAll('.goal-item.hidden');
+        section.innerHTML = '';
+        hiddenGoalElements.forEach(goal => {
+            const clone = goal.cloneNode(true);
+            clone.classList.remove('hidden');
+            section.appendChild(clone);
+        });
+    } else {
+        section.style.display = 'none';
+        button.textContent = t('show_hidden_goals');
+    }
+}
+
+// Enhanced drag and drop with visual feedback
+function setupDragAndDrop() {
+    const goalItems = document.querySelectorAll('.goal-item:not(.hidden)');
+    let draggedElement = null;
+    let placeholder = null;
+
+    function createPlaceholder() {
+        const div = document.createElement('div');
+        div.className = 'drag-placeholder';
+        return div;
+    }
+
+    goalItems.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            draggedElement = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            
+            placeholder = createPlaceholder();
+        });
+
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            if (placeholder && placeholder.parentNode) {
+                placeholder.remove();
+            }
+            document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+                el.classList.remove('drag-over', 'drag-over-bottom');
+            });
+            draggedElement = null;
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            
+            if (draggedElement && draggedElement !== item) {
+                const rect = item.getBoundingClientRect();
+                const midpoint = rect.top + rect.height / 2;
+                
+                // Clear previous indicators
+                document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+                    el.classList.remove('drag-over', 'drag-over-bottom');
+                });
+                
+                if (e.clientY < midpoint) {
+                    item.classList.add('drag-over');
+                    if (placeholder.parentNode !== item.parentNode || placeholder.nextSibling !== item) {
+                        item.parentNode.insertBefore(placeholder, item);
+                    }
+                } else {
+                    item.classList.add('drag-over-bottom');
+                    if (placeholder.parentNode !== item.parentNode || placeholder.previousSibling !== item) {
+                        item.parentNode.insertBefore(placeholder, item.nextSibling);
+                    }
+                }
+            }
+        });
+
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggedElement && placeholder && placeholder.parentNode) {
+                placeholder.parentNode.insertBefore(draggedElement, placeholder);
+                placeholder.remove();
+            }
+        });
+    });
+}
+
 // DOM elementen - gebruik lazy loading om null errors te voorkomen
 function getElement(id) {
     return document.getElementById(id);
@@ -196,7 +474,7 @@ async function analyzeRecipe() {
             analyzeBtn.disabled = true;
         }
         if (btnText) {
-            btnText.textContent = "Recept wordt geanalyseerd...";
+            btnText.textContent = t('analyze_recipe');
         }
         if (loader) {
             loader.style.display = "block";
@@ -321,7 +599,7 @@ async function analyzeRecipe() {
             analyzeBtn.disabled = false;
         }
         if (btnText) {
-            btnText.textContent = "Analyseer Recept";
+            btnText.textContent = t('analyze_recipe');
         }
         if (loader) {
             loader.style.display = "none";
@@ -416,45 +694,45 @@ function displayResults(data) {
     // Update the title
     const titleElement = document.getElementById('recipeTitle');
     if (titleElement) {
-        titleElement.textContent = data.recipe_title || 'Recept Analyse';
+        titleElement.textContent = data.recipe_title || t('recipe_analysis');
     }
 
-    // Update nutrition summary
+    // Store original nutrition for portions calculation
+    originalNutrition = data.total_nutrition || {};
+
+    // Update nutrition summary with portions control
     const nutritionGrid = document.getElementById('nutritionGrid');
-    if (nutritionGrid && data.total_nutrition) {
-        let nutritionHtml = '';
-        if (data.total_nutrition.calories) {
-            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Calorieën</span><span class="nutrition-value">${data.total_nutrition.calories}</span></div>`;
-        }
-        if (data.total_nutrition.protein) {
-            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Eiwitten</span><span class="nutrition-value">${data.total_nutrition.protein}g</span></div>`;
-        }
-        if (data.total_nutrition.carbs) {
-            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Koolhydraten</span><span class="nutrition-value">${data.total_nutrition.carbs}g</span></div>`;
-        }
-        if (data.total_nutrition.fat) {
-            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Vetten</span><span class="nutrition-value">${data.total_nutrition.fat}g</span></div>`;
-        }
-        if (data.total_nutrition.fiber) {
-            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Vezels</span><span class="nutrition-value">${data.total_nutrition.fiber}g</span></div>`;
-        }
-        nutritionGrid.innerHTML = nutritionHtml;
+    const nutritionTitle = document.querySelector('.nutrition-summary h3');
+    if (nutritionTitle) {
+        nutritionTitle.innerHTML = `${t('nutrition_per_portion')} ${createPortionsControl()}`;
     }
 
-    // Update health goals
+    updateNutritionDisplay();
+
+    // Update health goals with hide/show functionality
     const healthGoals = document.getElementById('healthGoals');
     if (healthGoals && data.health_goals_scores) {
         let goalsHtml = '';
         for (const [goal, score] of Object.entries(data.health_goals_scores)) {
             const percentage = Math.min(100, (score / 10) * 100);
             const color = score >= 7 ? '#4CAF50' : score >= 5 ? '#FF9800' : '#F44336';
+            const translatedGoal = t(`health_goals_list.${goal}`) || goal;
+            const isHidden = hiddenGoals.includes(goal);
             
             goalsHtml += `
-                <div class="goal-item" draggable="true">
+                <div class="goal-item ${isHidden ? 'hidden' : ''}" draggable="true">
                     <div class="goal-header">
-                        <span class="drag-handle">⋮⋮</span>
-                        <span class="goal-title">${goal}</span>
-                        <span class="goal-score">${score}/10</span>
+                        <span class="drag-handle" title="Versleep om volgorde te wijzigen">⋮⋮</span>
+                        <span class="goal-title">${translatedGoal}</span>
+                        <div class="goal-actions">
+                            <span class="goal-score">${score}/10</span>
+                            <button class="hide-goal-btn" 
+                                    onclick="toggleGoalVisibility('${goal}')"
+                                    title="${isHidden ? t('show_goal') : t('hide_goal')}"
+                                    aria-label="${isHidden ? t('show_goal') : t('hide_goal')}">
+                                ${isHidden ? '👁️' : '🚫👁️'}
+                            </button>
+                        </div>
                     </div>
                     <div class="progress-bar">
                         <div class="progress-fill" style="width: ${percentage}%; background-color: ${color};"></div>
@@ -464,7 +742,8 @@ function displayResults(data) {
         }
         healthGoals.innerHTML = goalsHtml;
         
-        // Add drag and drop functionality
+        // Update goals display and add drag and drop
+        updateGoalsDisplay();
         setupDragAndDrop();
     }
 
@@ -475,7 +754,7 @@ function displayResults(data) {
         
         // Add health score explanation first
         if (data.health_score_explanation) {
-            explanationHtml += `<div class="explanation-item"><strong>Hoe komen we bij deze score?</strong><br>${data.health_score_explanation}</div>`;
+            explanationHtml += `<div class="explanation-item"><strong>${t('how_we_calculate')}</strong><br>${data.health_score_explanation}</div>`;
         }
         
         // Add other health explanations
@@ -747,49 +1026,11 @@ document.addEventListener("keydown", (e) => {
     }
 });
 
-function setupDragAndDrop() {
-    const goalItems = document.querySelectorAll('.goal-item');
-    let draggedElement = null;
-
-    goalItems.forEach(item => {
-        item.addEventListener('dragstart', (e) => {
-            draggedElement = item;
-            item.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-        });
-
-        item.addEventListener('dragend', () => {
-            item.classList.remove('dragging');
-            draggedElement = null;
-        });
-
-        item.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        });
-
-        item.addEventListener('drop', (e) => {
-            e.preventDefault();
-            if (draggedElement && draggedElement !== item) {
-                const container = item.parentNode;
-                const allItems = [...container.children];
-                const draggedIndex = allItems.indexOf(draggedElement);
-                const targetIndex = allItems.indexOf(item);
-
-                if (draggedIndex < targetIndex) {
-                    container.insertBefore(draggedElement, item.nextSibling);
-                } else {
-                    container.insertBefore(draggedElement, item);
-                }
-            }
-        });
-    });
-}
-
 // Initialize the page
 window.addEventListener("load", async () => {
     try {
         console.log("Sneltoetsen: Alt+A = Analyseren, Escape = Fout sluiten");
+        await loadLanguage();
         await loadConfiguration();
         await loadHealthTips();
     } catch (error) {

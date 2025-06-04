@@ -22,32 +22,36 @@
             <div class="input-section">
                 <div class="tab-container">
                     <div class="tab-buttons">
-                        <button class="tab-btn active" data-tab="url-tab">Op basis van URL</button>
-                        <button class="tab-btn" data-tab="text-tab">Kopiëren en plakken</button>
+                        <button class="tab-btn active" id="url-tab-btn" data-tab="url-tab">Op basis van URL</button>
+                        <button class="tab-btn" id="text-tab-btn" data-tab="text-tab">Kopiëren en plakken</button>
                     </div>
                     
                     <div class="tab-content">
                         <div id="url-tab" class="tab-pane active">
                             <div class="input-group">
-                                <label for="recipeUrl">Recept URL</label>
+                                <label for="recipeUrl" id="recipe-url-label">Recept URL</label>
                                 <input type="url" 
                                        id="recipeUrl" 
                                        placeholder="Plak hier de URL van uw recept (bijv. van Allerhande)"
-                                       value="">
+                                       value=""
+                                       aria-label="Recept URL invoeren"
+                                       title="Voer een recept URL in van elke website">
                             </div>
                         </div>
                         
                         <div id="text-tab" class="tab-pane">
                             <div class="input-group">
-                                <label for="recipeText">Recept tekst</label>
+                                <label for="recipeText" id="recipe-text-label">Recept tekst</label>
                                 <textarea id="recipeText" 
-                                         placeholder="Plak hier de ingrediëntenlijst of het hele recept...&#10;&#10;Bijvoorbeeld:&#10;- 2 uien&#10;- 300g gehakt&#10;- 1 blik tomaten&#10;- 200ml room"></textarea>
+                                         placeholder="Plak hier de ingrediëntenlijst of het hele recept...&#10;&#10;Bijvoorbeeld:&#10;- 2 uien&#10;- 300g gehakt&#10;- 1 blik tomaten&#10;- 200ml room"
+                                         aria-label="Recept tekst invoeren"
+                                         title="Plak hier de volledige recept tekst of ingrediëntenlijst"></textarea>
                             </div>
                         </div>
                     </div>
                     
-                    <button id="analyzeBtn" class="btn-primary">
-                        <span class="btn-text">Analyseer Recept</span>
+                    <button id="analyzeBtn" class="btn-primary" aria-label="Recept analyseren" title="Start de analyse van uw recept">
+                        <span class="btn-text" id="analyze-btn-text">Analyseer Recept</span>
                         <div class="loader" style="display: none;"></div>
                     </button>
                 </div>
@@ -62,31 +66,31 @@
                 </div>
 
                 <div class="nutrition-summary">
-                    <h3>**Voedingswaarden per portie**</h3>
+                    <h3 id="nutrition-title">Voedingswaarden per persoon</h3>
                     <div class="nutrition-grid" id="nutritionGrid">
                         <!-- Dynamisch gevuld -->
                     </div>
                 </div>
 
                 <div class="health-goals">
-                    <h3>Geschiktheid voor gezondheidsdoelen</h3>
+                    <h3 id="health-goals-title">Geschiktheid voor gezondheidsdoelen</h3>
                     <div class="goals-container" id="healthGoals">
                         <!-- Dynamisch gevuld -->
                     </div>
                 </div>
 
                 <div class="health-explanation">
-                    <h3>Hoe komen we tot deze score?</h3>
+                    <h3 id="health-explanation-title">Hoe komen we tot deze score?</h3>
                     <div id="healthExplanation"></div>
                 </div>
 
                 <div class="ingredients-section">
-                    <h3>Alle Ingrediënten</h3>
+                    <h3 id="ingredients-title">Alle Ingrediënten</h3>
                     <div id="allIngredients" class="ingredients-list"></div>
                 </div>
 
                 <div class="swaps-section" id="swapsSection" style="display: none;">
-                    <h3>Aanbevolen Vervangingen</h3>
+                    <h3 id="swaps-title">Aanbevolen Vervangingen</h3>
                     <div id="swapsList" class="swaps-list"></div>
                 </div>
             </div>
