@@ -11,6 +11,13 @@ from urllib.parse import urlparse, urljoin
 import asyncio
 from debug_helper import debug
 
+# Configure logging first
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Selenium imports with error handling
 try:
     from selenium import webdriver
@@ -28,13 +35,6 @@ except ImportError as e:
 except Exception as e:
     SELENIUM_AVAILABLE = False
     logger.warning(f"Selenium setup failed - fallback to requests only: {e}")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 # Load configuration files
 try:
