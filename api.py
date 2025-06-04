@@ -301,29 +301,46 @@ async def analyse_text_endpoint(request: Request):
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    # Check Selenium availability
-    selenium_available = False
-    try:
-        import shutil
-        chrome_binary = shutil.which('chromium') or shutil.which('chrome')
-        chromedriver_binary = shutil.which('chromedriver')
-        selenium_available = bool(chrome_binary and chromedriver_binary)
-    except:
-        pass
+    """Simple health check endpoint."""
+    return {"status": "healthy", "timestamp": time.time()}
 
-    import shutil
-    return {
-        "status": "healthy", 
-        "message": "Silverfood API is actief",
-        "version": "3.4.0",
-        "features": ["adaptive_detection", "pattern_learning", "universal_recipe_support", "ai_ingredient_validation"],
-        "selenium_available": selenium_available,
-        "components": {
-            "chrome": bool(shutil.which('chromium') or shutil.which('chrome')),
-            "chromedriver": bool(shutil.which('chromedriver'))
+@app.post("/calculate-portions")
+async def calculate_portions_endpoint(request: Request):
+    """
+    Calculate ingredient quantities for different number of portions.
+    """
+    try:
+        body = await request.json()
+        ingredients = body.get('ingredients', [])
+        target_portions = body.get('target_portions', 4)
+        original_portions = body.get('original_portions', 4)
+
+        if not ingredients:
+            raise HTTPException(status_code=400, detail="Geen ingrediënten opgegeven")
+
+        if target_portions <= 0:
+            raise HTTPException(status_code=400, detail="Aantal porties moet groter dan 0 zijn")
+
+        # Import the function from analyse module
+        from analyse import calculate_portions, detect_recipe_portions
+
+        # If original portions not specified, try to detect
+        if original_portions == 4 and 'original_portions' not in body:
+            detected_portions = detect_recipe_portions(ingredients)
+            original_portions = detected_portions
+
+        adjusted_ingredients = calculate_portions(ingredients, target_portions, original_portions)
+
+        return {
+            "success": True,
+            "target_portions": target_portions,
+            "original_portions": original_portions,
+            "ingredients": adjusted_ingredients
         }
-    }
+
+    except Exception as e:
+        logger.error(f"Portion calculation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Portieberekning mislukt: {str(e)}")
 
 @app.get("/supported-sites")
 async def supported_sites():

@@ -266,28 +266,51 @@ def scrape_with_selenium(url: str) -> Tuple[List[str], str]:
             debug.log_selenium_action("Driver closed", "Cleanup completed")
 
 def extract_ingredients_from_text(text: str) -> List[str]:
-    """Extract ingredients from direct text input."""
+    """Extract ingredients from direct text input with smart duplicate handling."""
     logger.info("Extracting ingredients from text")
 
     # Split text into lines and filter for potential ingredients
-    lines = text.split('\n')
-    ingredients = []
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    
+    # Clean and deduplicate lines
+    cleaned_lines = []
+    seen_ingredients = set()
+    
+    for line in lines:
+        if not line or len(line) < 3:
+            continue
+            
+        # Fix common copy-paste formatting issues from AH and other recipe sites
+        cleaned_line = clean_ingredient_line(line)
+        
+        if cleaned_line:
+            # Check for duplicates - if this is just the ingredient name without amounts,
+            # and we already have a line with amounts for this ingredient, skip it
+            ingredient_name = extract_ingredient_name_only(cleaned_line)
+            
+            # Skip if we already have this ingredient name with measurements
+            skip_duplicate = False
+            for seen_name in seen_ingredients:
+                if ingredient_name.lower() in seen_name.lower() and has_measurements(seen_name):
+                    skip_duplicate = True
+                    break
+                    
+            if not skip_duplicate:
+                cleaned_lines.append(cleaned_line)
+                seen_ingredients.add(cleaned_line)
 
     # Patterns that suggest ingredient lines
     ingredient_patterns = [
-        r'^\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak)',  # Amount + unit (with decimals)
-        r'^\d+(?:\.\d+)?\s*[^\d\s]',  # Number followed by text (with decimals)
+        r'^\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak)',  # Amount + unit
+        r'^½\d*\.?\d*\s*\w+',  # Fractions like ½ or ½0.5
+        r'^\d+(?:\.\d+)?\s*[^\d\s]',  # Number followed by text
         r'^-\s*\d*\s*[^\d]',  # Dash lists
         r'^\*\s*\d*\s*[^\d]',  # Bullet lists
         r'^\d+\.\s*\d*\s*[^\d]',  # Numbered lists
-        r'^\d+(?:\.\d+)?\s+\w+',  # Simple pattern: number + space + word
     ]
 
-    for line in lines:
-        line = line.strip()
-        if not line or len(line) < 3:
-            continue
-
+    ingredients = []
+    for line in cleaned_lines:
         # Check if line matches ingredient patterns
         is_ingredient = any(re.match(pattern, line, re.IGNORECASE) for pattern in ingredient_patterns)
 
@@ -298,24 +321,54 @@ def extract_ingredients_from_text(text: str) -> List[str]:
         if is_ingredient or contains_ingredient_word:
             ingredients.append(line)
 
-    # If no pattern matches found, try to extract any meaningful lines
+    # If no pattern matches found, use all cleaned lines
     if len(ingredients) < 3:
-        for line in lines:
-            line = line.strip()
-            if len(line) > 5 and not line.startswith(('http', 'www')):
-                ingredients.append(line)
+        ingredients = cleaned_lines
 
-    logger.info(f"Extracted {len(ingredients)} ingredients from text")
+    logger.info(f"Extracted {len(ingredients)} ingredients from text after cleaning")
     return ingredients
 
+def clean_ingredient_line(line: str) -> str:
+    """Clean ingredient line from copy-paste formatting issues."""
+    # Fix common AH.nl copy-paste issues like "500g500 gram" -> "500 gram"
+    
+    # Pattern: aantal+eenheid+aantal+spatie+eenheid (bijv. "500g500 gram")
+    line = re.sub(r'(\d+(?:\.\d+)?)\s*(g|kg|ml|l|el|tl|gram|kilogram|liter|eetlepel|theelepel)\d+\s+(gram|kilogram|liter|eetlepel|theelepel)', r'\1 \3', line)
+    
+    # Pattern: aantal+eenheid+aantal+eenheid (bijv. "3el3 eetlepel")
+    line = re.sub(r'(\d+(?:\.\d+)?)(el|tl|g|kg|ml|l)\d+\s+(eetlepel|theelepel|gram|kilogram|liter)', r'\1 \3', line)
+    
+    # Pattern: ½aantal -> ½ aantal
+    line = re.sub(r'½(\d+(?:\.\d+)?)', r'0.5', line)
+    
+    # Clean up multiple spaces
+    line = re.sub(r'\s+', ' ', line).strip()
+    
+    return line
+
+def extract_ingredient_name_only(line: str) -> str:
+    """Extract just the ingredient name without measurements."""
+    # Remove common measurement patterns to get just the ingredient name
+    clean_line = re.sub(r'^\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|eetlepel|theelepel|stuks?|blik|pak)\s*', '', line, flags=re.IGNORECASE)
+    clean_line = re.sub(r'^½\d*\.?\d*\s*', '', clean_line)
+    clean_line = re.sub(r'^\d+(?:\.\d+)?\s*', '', clean_line)
+    return clean_line.strip()
+
+def has_measurements(line: str) -> bool:
+    """Check if line contains measurements."""
+    measurement_pattern = r'\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|eetlepel|theelepel|stuks?|blik|pak)'
+    return bool(re.search(measurement_pattern, line, re.IGNORECASE))
+
 def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
-    """Analyze a single ingredient for health scoring."""
+    """Analyze a single ingredient for health scoring with structured parsing."""
     if not ingredient_text or not isinstance(ingredient_text, str):
         return {
             'name': 'Onbekend ingrediënt',
             'original_text': str(ingredient_text) if ingredient_text else '',
             'health_score': 5,
-            'category': 'unknown'
+            'category': 'unknown',
+            'quantity': None,
+            'unit': None
         }
 
     # Basic ingredient analysis - verbeterd voor duplicate text
@@ -329,18 +382,11 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
     else:
         ingredient_text = lines[0] if lines else original_text
 
-    # Clean ingredient name
-    clean_ingredient = re.sub(r'\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak|eetlepel|theelepel)', '', ingredient_text).strip()
-    clean_ingredient = re.sub(r'^[-*•]\s*', '', clean_ingredient).strip()
-    clean_ingredient = re.sub(r'^\d+(?:\.\d+)?\s*', '', clean_ingredient).strip()  # Remove leading numbers
-    clean_ingredient = re.sub(r'^½\d*\.?\d*\s*', '', clean_ingredient).strip()  # Remove fractions like ½0.5
-
-    # Als clean_ingredient leeg is, gebruik originele tekst
-    if not clean_ingredient:
-        clean_ingredient = ingredient_text.strip()
+    # Parse quantity and unit
+    quantity, unit, clean_ingredient = parse_ingredient_components(ingredient_text)
 
     # Simple health scoring based on keywords
-    healthy_keywords = ['groente', 'fruit', 'volkoren', 'noten', 'vis', 'olijfolie', 'avocado', 'asperges', 'sperziebonen', 'spinazie', 'peterselie', 'radijs']
+    healthy_keywords = ['groente', 'fruit', 'volkoren', 'noten', 'vis', 'olijfolie', 'avocado', 'asperges', 'sperziebonen', 'spinazie', 'peterselie', 'radijs', 'nectarine', 'granaatappel']
     unhealthy_keywords = ['suiker', 'boter', 'room', 'spek', 'worst', 'gebak', 'friet', 'chips']
 
     health_score = 5  # Default neutral score
@@ -366,13 +412,80 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
         health_score = 8  # High score for olive oil
     elif any(veg in ingredient_lower for veg in ['asperges', 'sperziebonen', 'spinazie', 'radijs']):
         health_score = 9  # Very high for vegetables
+    elif any(fruit in ingredient_lower for fruit in ['nectarine', 'granaatappel']):
+        health_score = 8  # High for fruits
 
     return {
         'name': clean_ingredient,
         'original_text': original_text,
         'health_score': health_score,
-        'category': 'unknown'
+        'category': 'unknown',
+        'quantity': quantity,
+        'unit': unit
     }
+
+def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], Optional[str], str]:
+    """Parse ingredient text into quantity, unit, and name components."""
+    
+    # Normalize fractions first
+    text = ingredient_text.replace('½', '0.5')
+    
+    # Common unit mappings
+    unit_mappings = {
+        'g': 'gram',
+        'kg': 'kilogram', 
+        'l': 'liter',
+        'ml': 'milliliter',
+        'el': 'eetlepel',
+        'tl': 'theelepel',
+        'stuks': 'stuks',
+        'stuk': 'stuks',
+        'blik': 'blik',
+        'pak': 'pak',
+        'teen': 'teen',
+        'takje': 'takje',
+        'takjes': 'takje',
+        'snufje': 'snufje',
+        'snufjes': 'snufje'
+    }
+    
+    # Try to match quantity and unit patterns
+    patterns = [
+        # Pattern: "500 gram verse witte asperges"
+        r'^(\d+(?:\.\d+)?)\s+(gram|kilogram|liter|milliliter|eetlepel|theelepel|stuks?|blik|pak|teen|takjes?|snufjes?)\s+(.+)',
+        # Pattern: "500g verse witte asperges" 
+        r'^(\d+(?:\.\d+)?)(g|kg|l|ml|el|tl)\s+(.+)',
+        # Pattern: "3 el extra vierge olijfolie"
+        r'^(\d+(?:\.\d+)?)\s+(el|tl|g|kg|ml|l)\s+(.+)',
+        # Pattern: "22 nectarines" (just number + name)
+        r'^(\d+(?:\.\d+)?)\s+(.+)',
+    ]
+    
+    for pattern in patterns:
+        match = re.match(pattern, text, re.IGNORECASE)
+        if match:
+            if len(match.groups()) == 3:
+                quantity_str, unit_str, name = match.groups()
+                # Normalize unit
+                unit = unit_mappings.get(unit_str.lower(), unit_str.lower())
+                try:
+                    quantity = float(quantity_str)
+                    return quantity, unit, name.strip()
+                except ValueError:
+                    pass
+            elif len(match.groups()) == 2:
+                quantity_str, name = match.groups()
+                try:
+                    quantity = float(quantity_str)
+                    return quantity, 'stuks', name.strip()
+                except ValueError:
+                    pass
+    
+    # If no pattern matches, return just the clean name
+    clean_name = re.sub(r'^\d+(?:\.\d+)?\s*', '', text).strip()
+    clean_name = re.sub(r'^(g|kg|l|ml|el|tl|gram|kilogram|liter|milliliter|eetlepel|theelepel)\s*', '', clean_name, flags=re.IGNORECASE).strip()
+    
+    return None, None, clean_name if clean_name else text.strip()
 
 def calculate_total_nutrition(ingredients: List[Dict]) -> Dict[str, float]:
     """Calculate total nutrition from ingredients."""
@@ -581,3 +694,92 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Analysis failed: {e}")
         sys.exit(1)
+
+
+def calculate_portions(ingredients: List[Dict], target_portions: int, original_portions: int = 4) -> List[Dict]:
+    """
+    Calculate ingredient quantities for different number of portions.
+    
+    Args:
+        ingredients: List of ingredient dictionaries with quantity and unit
+        target_portions: Target number of portions
+        original_portions: Original recipe portions (default 4)
+        
+    Returns:
+        List of ingredients with adjusted quantities
+    """
+    if target_portions <= 0 or original_portions <= 0:
+        return ingredients
+        
+    portion_multiplier = target_portions / original_portions
+    adjusted_ingredients = []
+    
+    for ingredient in ingredients:
+        adjusted_ingredient = ingredient.copy()
+        
+        if ingredient.get('quantity') is not None:
+            original_quantity = ingredient['quantity']
+            new_quantity = original_quantity * portion_multiplier
+            
+            # Round to reasonable precision
+            if new_quantity < 1:
+                # For small amounts, round to 1 decimal place
+                adjusted_ingredient['quantity'] = round(new_quantity, 1)
+            elif new_quantity < 10:
+                # For medium amounts, round to nearest 0.5
+                adjusted_ingredient['quantity'] = round(new_quantity * 2) / 2
+            else:
+                # For large amounts, round to nearest whole number
+                adjusted_ingredient['quantity'] = round(new_quantity)
+            
+            # Update display text
+            if adjusted_ingredient['quantity'] and adjusted_ingredient.get('unit'):
+                adjusted_ingredient['display_text'] = f"{adjusted_ingredient['quantity']} {adjusted_ingredient['unit']} {adjusted_ingredient['name']}"
+            else:
+                adjusted_ingredient['display_text'] = adjusted_ingredient['name']
+        else:
+            # No quantity info, keep as-is
+            adjusted_ingredient['display_text'] = adjusted_ingredient['name']
+            
+        adjusted_ingredients.append(adjusted_ingredient)
+    
+    return adjusted_ingredients
+
+def detect_recipe_portions(ingredients: List[Dict]) -> int:
+    """
+    Try to detect how many portions a recipe is for based on ingredient quantities.
+    
+    Args:
+        ingredients: List of ingredient dictionaries
+        
+    Returns:
+        Estimated number of portions (default 4 if unclear)
+    """
+    # Look for clues in quantities - this is a simple heuristic
+    protein_quantities = []
+    
+    for ingredient in ingredients:
+        name_lower = ingredient.get('name', '').lower()
+        quantity = ingredient.get('quantity')
+        unit = ingredient.get('unit', '').lower()
+        
+        # Look for main protein sources and their typical quantities
+        if quantity and unit in ['gram', 'g']:
+            if any(protein in name_lower for protein in ['vlees', 'kip', 'vis', 'gehakt', 'burrata', 'kaas']):
+                protein_quantities.append(quantity)
+    
+    if protein_quantities:
+        avg_protein = sum(protein_quantities) / len(protein_quantities)
+        
+        # Rough estimation based on protein amounts
+        if avg_protein < 150:
+            return 2
+        elif avg_protein < 300:
+            return 4  
+        elif avg_protein < 500:
+            return 6
+        else:
+            return 8
+    
+    # Default to 4 portions if we can't determine
+    return 4

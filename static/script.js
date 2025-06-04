@@ -856,20 +856,32 @@ function displayAllIngredients(ingredients) {
     const container = document.getElementById("allIngredients");
     container.innerHTML = "";
 
-    if (ingredients.length === 0) {
+    if (!ingredients || ingredients.length === 0) {
         container.innerHTML =
             '<p style="font-style: italic; color: #666;">Geen ingrediënten gevonden.</p>';
         return;
     }
 
     ingredients.forEach((ingredient, index) => {
+        // Safe ingredient object with fallbacks
+        const safeIngredient = {
+            name: ingredient?.name || 'Onbekend ingrediënt',
+            health_score: ingredient?.health_score || 5,
+            original_text: ingredient?.original_text || '',
+            quantity: ingredient?.quantity || null,
+            unit: ingredient?.unit || null,
+            nutrition: ingredient?.nutrition || null,
+            health_fact: ingredient?.health_fact || null,
+            substitution: ingredient?.substitution || null
+        };
+
         const item = document.createElement("div");
         item.className = "ingredient-item";
 
         // Categoriseer op basis van health score
-        if (ingredient.health_score >= 7) {
+        if (safeIngredient.health_score >= 7) {
             item.classList.add("healthy");
-        } else if (ingredient.health_score >= 4) {
+        } else if (safeIngredient.health_score >= 4) {
             item.classList.add("neutral");
         } else {
             item.classList.add("unhealthy");
@@ -880,22 +892,28 @@ function displayAllIngredients(ingredients) {
 
         const name = document.createElement("div");
         name.className = "ingredient-name";
-        name.textContent = ingredient.name;
+        name.textContent = safeIngredient.name;
 
         // Verbeterde details met hoeveelheid info
         const details = document.createElement("div");
         details.className = "ingredient-details";
 
         let detailText = "";
-        if (ingredient.amount && ingredient.unit) {
-            detailText = `**${ingredient.amount} ${ingredient.unit}** - ${ingredient.name}`;
+        if (safeIngredient.quantity && safeIngredient.unit) {
+            detailText = `**${safeIngredient.quantity} ${safeIngredient.unit}** - ${safeIngredient.name}`;
         } else {
-            detailText = ingredient.original_line;
+            detailText = safeIngredient.original_text || safeIngredient.name;
         }
-        details.innerHTML = detailText.replace(
-            /\*\*(.*?)\*\*/g,
-            "<strong>$1</strong>",
-        );
+        
+        // Safe replace with null check
+        if (detailText && typeof detailText === 'string') {
+            details.innerHTML = detailText.replace(
+                /\*\*(.*?)\*\*/g,
+                "<strong>$1</strong>",
+            );
+        } else {
+            details.textContent = safeIngredient.name;
+        }
 
         info.appendChild(name);
         info.appendChild(details);
