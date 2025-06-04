@@ -1377,7 +1377,8 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
             'health_score': 5,
             'category': 'unknown',
             'quantity': None,
-            'unit': None
+            'unit': None,
+            'nutrition': {}
         }
 
     # Basic ingredient analysis - verbeterd voor duplicate text
@@ -1393,6 +1394,9 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
 
     # Parse quantity and unit
     quantity, unit, clean_ingredient = parse_ingredient_components(ingredient_text)
+
+    # Get nutrition data from API
+    nutrition_data = get_ingredient_nutrition(clean_ingredient, quantity, unit)
 
     # Simple health scoring based on keywords
     healthy_keywords = ['groente', 'fruit', 'volkoren', 'noten', 'vis', 'olijfolie', 'avocado', 'asperges', 'sperziebonen', 'spinazie', 'peterselie', 'radijs', 'nectarine', 'granaatappel']
@@ -1430,8 +1434,154 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
         'health_score': health_score,
         'category': 'unknown',
         'quantity': quantity,
-        'unit': unit
+        'unit': unit,
+        'nutrition': nutrition_data
     }
+
+def get_ingredient_nutrition(ingredient_name: str, quantity: Optional[float] = None, unit: Optional[str] = None) -> Dict[str, Any]:
+    """Get nutrition data for an ingredient using FoodData Central API."""
+    try:
+        # Clean ingredient name for API search
+        clean_name = ingredient_name.lower().strip()
+        
+        # Translate Dutch to English for better API results
+        dutch_to_english = {
+            'ui': 'onion',
+            'uien': 'onions',
+            'knoflook': 'garlic',
+            'tomaat': 'tomato',
+            'tomaten': 'tomatoes',
+            'wortel': 'carrot',
+            'wortels': 'carrots',
+            'aardappel': 'potato',
+            'aardappels': 'potatoes',
+            'kip': 'chicken',
+            'rundvlees': 'beef',
+            'gehakt': 'ground beef',
+            'vis': 'fish',
+            'zalm': 'salmon',
+            'spinazie': 'spinach',
+            'sla': 'lettuce',
+            'paprika': 'bell pepper',
+            'komkommer': 'cucumber',
+            'champignons': 'mushrooms',
+            'champignon': 'mushroom',
+            'broccoli': 'broccoli',
+            'bloemkool': 'cauliflower',
+            'rijst': 'rice',
+            'pasta': 'pasta',
+            'bloem': 'flour',
+            'suiker': 'sugar',
+            'boter': 'butter',
+            'melk': 'milk',
+            'eieren': 'eggs',
+            'ei': 'egg',
+            'kaas': 'cheese',
+            'olijfolie': 'olive oil',
+            'olie': 'oil',
+            'zout': 'salt',
+            'peper': 'pepper',
+            'peterselie': 'parsley',
+            'basilicum': 'basil',
+            'oregano': 'oregano',
+            'tijm': 'thyme',
+            'rozemarijn': 'rosemary'
+        }
+        
+        # Try to find English translation
+        english_name = dutch_to_english.get(clean_name, clean_name)
+        
+        # Use USDA FoodData Central API (free, no key required for basic search)
+        search_url = f"https://api.nal.usda.gov/fdc/v1/foods/search"
+        params = {
+            'query': english_name,
+            'dataType': ['Foundation', 'SR Legacy'],
+            'pageSize': 1,
+            'api_key': 'DEMO_KEY'  # Demo key, limited but works for basic testing
+        }
+        
+        response = requests.get(search_url, params=params, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('foods') and len(data['foods']) > 0:
+                food = data['foods'][0]
+                food_nutrients = food.get('foodNutrients', [])
+                
+                # Extract key nutrients (per 100g)
+                nutrition = {
+                    'calories': 0,
+                    'protein': 0,
+                    'carbs': 0,
+                    'fat': 0,
+                    'fiber': 0,
+                    'sodium': 0,
+                    'sugar': 0
+                }
+                
+                # Map nutrient IDs to our nutrition keys
+                nutrient_map = {
+                    1008: 'calories',  # Energy (kcal)
+                    1003: 'protein',   # Protein
+                    1005: 'carbs',     # Carbohydrate
+                    1004: 'fat',       # Total fat
+                    1079: 'fiber',     # Fiber
+                    1093: 'sodium',    # Sodium
+                    2000: 'sugar'      # Total sugars
+                }
+                
+                for nutrient in food_nutrients:
+                    nutrient_id = nutrient.get('nutrientId')
+                    if nutrient_id in nutrient_map:
+                        value = nutrient.get('value', 0)
+                        nutrition[nutrient_map[nutrient_id]] = round(value, 1)
+                
+                # If we have quantity information, calculate actual amounts
+                if quantity and unit:
+                    multiplier = calculate_nutrition_multiplier(quantity, unit)
+                    for key in nutrition:
+                        nutrition[key] = round(nutrition[key] * multiplier, 1)
+                
+                return nutrition
+                
+    except Exception as e:
+        logger.debug(f"Failed to get nutrition data for {ingredient_name}: {e}")
+    
+    # Return empty nutrition data if API fails
+    return {
+        'calories': 0,
+        'protein': 0,
+        'carbs': 0,
+        'fat': 0,
+        'fiber': 0,
+        'sodium': 0,
+        'sugar': 0
+    }
+
+def calculate_nutrition_multiplier(quantity: float, unit: str) -> float:
+    """Calculate multiplier to convert from 100g base to actual quantity."""
+    # Convert different units to grams, then get ratio to 100g
+    unit_to_grams = {
+        'gram': 1,
+        'g': 1,
+        'kilogram': 1000,
+        'kg': 1000,
+        'eetlepel': 15,  # approx 15g
+        'el': 15,
+        'theelepel': 5,  # approx 5g
+        'tl': 5,
+        'stuks': 100,    # assume average piece is 100g
+        'stuk': 100,
+        'blik': 400,     # average can
+        'pak': 250,      # average package
+        'teen': 5,       # garlic clove
+        'takje': 2,      # herb sprig
+        'snufje': 0.5    # pinch
+    }
+    
+    grams = quantity * unit_to_grams.get(unit.lower(), 100)
+    return grams / 100  # Convert to per-100g basis
 
 def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], Optional[str], str]:
     """Parse ingredient text into quantity, unit, and name components."""
@@ -1518,7 +1668,7 @@ def calculate_health_goals_scores(ingredients: List[Dict], nutrition: Dict) -> D
     }
 
 def generate_health_explanation(ingredients: List[Dict], health_scores: Dict) -> List[str]:
-    """Generate health explanations."""
+    """Generate health explanations with OpenAI for specific ingredient reasons."""
     explanations = []
 
     if not ingredients:
@@ -1538,15 +1688,67 @@ def generate_health_explanation(ingredients: List[Dict], health_scores: Dict) ->
     healthy_ingredients = [ing for ing in ingredients if ing.get('health_score', 5) >= 7]
     unhealthy_ingredients = [ing for ing in ingredients if ing.get('health_score', 5) <= 3]
 
+    # Get OpenAI explanations for healthy ingredients
     if healthy_ingredients:
         healthy_names = [ing.get('name', 'Onbekend') for ing in healthy_ingredients[:3]]
-        explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {', '.join(healthy_names)}")
+        try:
+            healthy_explanation = get_openai_ingredient_explanation(healthy_names, True, health_scores)
+            explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {healthy_explanation}")
+        except Exception as e:
+            logger.warning(f"OpenAI explanation failed for healthy ingredients: {e}")
+            explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {', '.join(healthy_names)}")
 
+    # Get OpenAI explanations for unhealthy ingredients
     if unhealthy_ingredients:
         unhealthy_names = [ing.get('name', 'Onbekend') for ing in unhealthy_ingredients[:3]]
-        explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join(unhealthy_names)}")
+        try:
+            unhealthy_explanation = get_openai_ingredient_explanation(unhealthy_names, False, health_scores)
+            explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {unhealthy_explanation}")
+        except Exception as e:
+            logger.warning(f"OpenAI explanation failed for unhealthy ingredients: {e}")
+            explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join(unhealthy_names)}")
 
     return explanations
+
+def get_openai_ingredient_explanation(ingredient_names: List[str], is_healthy: bool, active_health_goals: Dict[str, int]) -> str:
+    """Get OpenAI explanation for why ingredients are healthy or unhealthy."""
+    import openai
+    import os
+    
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    if not openai.api_key:
+        raise Exception("OpenAI API key not found")
+
+    # Filter out hidden goals (assuming goals with very low scores are hidden)
+    visible_goals = [goal for goal, score in active_health_goals.items() if score > 0]
+    
+    ingredients_text = ", ".join(ingredient_names)
+    health_status = "gezond" if is_healthy else "ongezond"
+    goals_context = f"Relevante gezondheidsdoelen: {', '.join(visible_goals[:5])}" if visible_goals else ""
+    
+    prompt = f"""Leg kort uit waarom de volgende ingrediënten als {health_status} worden beschouwd in een recept: {ingredients_text}
+
+{goals_context}
+
+Geef een korte, informatieve uitleg (max 2 zinnen) over de voedingswaarde en gezondheidseffecten. Vermeld specifieke vitamines, mineralen of andere voedingsstoffen waar relevant. Antwoord in het Nederlands."""
+
+    try:
+        response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Je bent een voedingsdeskundige die korte, accurate uitleg geeft over ingrediënten."},
+                {"role": "user", "content": prompt}
+            ],
+            max_tokens=150,
+            temperature=0.3
+        )
+        
+        explanation = response.choices[0].message.content.strip()
+        return f"{ingredients_text} - {explanation}"
+        
+    except Exception as e:
+        logger.error(f"OpenAI API call failed: {e}")
+        raise
 
 def generate_healthier_swaps(ingredients: List[Dict]) -> List[Dict]:
     """Generate healthier ingredient swaps."""

@@ -565,7 +565,17 @@ function displayIngredientsList(ingredients) {
                 <div class="ingredient-item ${healthClass}">
                     <div class="ingredient-info">
                         <div class="ingredient-name">${capitalizedName}</div>
-                        ${ingredient.details ? `<div class="ingredient-details">${ingredient.details}</div>` : ''}
+                    <div class="ingredient-details">${ingredient.original_text}</div>
+                    ${ingredient.nutrition && Object.keys(ingredient.nutrition).length > 0 ? 
+                        `<div class="ingredient-nutrition">
+                            <strong>Voedingswaarden:</strong> 
+                            ${ingredient.nutrition.calories ? `${ingredient.nutrition.calories} kcal` : ''}
+                            ${ingredient.nutrition.protein ? `, ${ingredient.nutrition.protein}g eiwit` : ''}
+                            ${ingredient.nutrition.carbs ? `, ${ingredient.nutrition.carbs}g koolhydraten` : ''}
+                            ${ingredient.nutrition.fat ? `, ${ingredient.nutrition.fat}g vet` : ''}
+                            ${ingredient.nutrition.fiber ? `, ${ingredient.nutrition.fiber}g vezels` : ''}
+                        </div>` : ''
+                    }
                         ${ingredient.health_fact ? `<div class="health-fact">${ingredient.health_fact}</div>` : ''}
                         ${ingredient.substitution ? `<div class="substitution">💡 Alternatief: ${ingredient.substitution}</div>` : ''}
                     </div>
@@ -901,7 +911,7 @@ async function analyzeRecipe() {
 
         console.error("Analysis Error:", error);
         showError(userMessage, errorTitle);
-    } finally {
+        } finally {
         // Reset UI
         const analyzeBtn = getAnalyzeBtn();
         const btnText = getBtnText();
