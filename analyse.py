@@ -1059,7 +1059,7 @@ def extract_ingredients_from_text(text: str) -> List[str]:
     # Check if all "ingredients" are suspiciously similar (like HTML attributes)
     if len(ingredients) > 10:
         # Count how many contain common HTML patterns
-        html_like_count = sum(1 for ing in ingredients if any(pattern in ing.lower() for pattern in ['class=', 'id=', 'data-', 'aria-', '</', 'div>', 'button>', 'input>', 'onclick']))k', 'style=']))
+        html_like_count = sum(1 for ing in ingredients if any(pattern in ing.lower() for pattern in ['class=', 'id=', 'data-', 'aria-', '</', 'div>', 'button>', 'input>', 'onclick', 'style=']))
 
         if html_like_count > (len(ingredients) * 0.3):
             logger.warning(f"Found {html_like_count} HTML-like ingredients out of {len(ingredients)} total")

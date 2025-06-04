@@ -23,7 +23,23 @@
     "hide_goal": "Doel verbergen",
     "show_goal": "Doel tonen",
     "show_hidden_goals": "Bekijk verborgen doelen",
-    "hide_hidden_goals": "Verberg verborgen doelen"
+    "hide_hidden_goals": "Verberg verborgen doelen",
+    "health_goals_list": {
+      "Algemene gezondheid": "Algemene gezondheid",
+      "Hart- en vaatziekten": "Hart- en vaatziekten",
+      "Diabetes preventie": "Diabetes preventie",
+      "Gewichtsbeheersing": "Gewichtsbeheersing",
+      "Spijsvertering": "Spijsvertering",
+      "Immuunsysteem": "Immuunsysteem",
+      "Botgezondheid": "Botgezondheid",
+      "Energieniveau": "Energieniveau",
+      "Huidgezondheid": "Huidgezondheid",
+      "Hersengezondheid": "Hersengezondheid",
+      "weight_loss": "Gewichtsverlies",
+      "muscle_gain": "Spieropbouw",
+      "heart_health": "Hartgezondheid",
+      "energy_boost": "Energie boost"
+    }
   },
   "en": {
     "recipe_analysis": "Recipe Analysis",
