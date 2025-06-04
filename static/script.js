@@ -248,9 +248,14 @@ async function loadIcons() {
 }
 
 function updateGoalsDisplay() {
-    const allGoals = document.querySelectorAll('.goal-item');
+    const container = document.querySelector('.goals-container');
+    if (!container) return;
+    
+    const allGoals = container.querySelectorAll('.goal-item');
 
     allGoals.forEach(goal => {
+        if (!goal || !container.contains(goal)) return;
+        
         const goalDataAttribute = goal.getAttribute('data-goal');
         const titleElement = goal.querySelector('.goal-title');
         const goalName = goalDataAttribute || (titleElement ? titleElement.textContent.trim() : '');
@@ -365,7 +370,10 @@ function updateHiddenGoalsSection() {
 
 // Enhanced drag and drop with proper drop zones
 function setupDragAndDrop() {
-    const goalItems = document.querySelectorAll('.goal-item:not([style*="display: none"])');
+    const container = document.querySelector('.goals-container');
+    if (!container) return;
+    
+    const goalItems = container.querySelectorAll('.goal-item:not([style*="display: none"])');
     let draggedElement = null;
     let dropZones = [];
 
@@ -374,10 +382,12 @@ function setupDragAndDrop() {
         document.querySelectorAll('.drop-zone').forEach(zone => zone.remove());
         dropZones = [];
 
-        const container = document.querySelector('.goals-container');
-        if (!container) return;
+        if (!container || goalItems.length === 0) return;
 
         goalItems.forEach((item, index) => {
+            // Check if item is still in the container
+            if (!container.contains(item)) return;
+            
             // Create drop zone before each item
             const dropZone = document.createElement('div');
             dropZone.className = 'drop-zone';
@@ -390,7 +400,11 @@ function setupDragAndDrop() {
                 const lastDropZone = document.createElement('div');
                 lastDropZone.className = 'drop-zone';
                 lastDropZone.dataset.position = index + 1;
-                container.insertBefore(lastDropZone, item.nextSibling);
+                if (item.nextSibling) {
+                    container.insertBefore(lastDropZone, item.nextSibling);
+                } else {
+                    container.appendChild(lastDropZone);
+                }
                 dropZones.push(lastDropZone);
             }
         });
@@ -465,11 +479,16 @@ function setupDragAndDrop() {
         draggedElement = null;
     }
 
+    // Only proceed if we have a valid container and items
+    if (!container || goalItems.length === 0) return;
+    
     // Initialize drop zones
     createDropZones();
     setupDropZoneEvents();
 
     goalItems.forEach(item => {
+        if (!item || !container.contains(item)) return;
+        
         const dragHandle = item.querySelector('.drag-handle');
 
         if (dragHandle) {
@@ -1048,15 +1067,21 @@ function displayResults(data) {
         for (const [goal, score] of Object.entries(data.health_goals_scores)) {
             const percentage = Math.min(100, (score / 10) * 100);
             const color = score >= 7 ? '#4CAF50' : score >= 5 ? '#FF9800' : '#F44336';
-            const translatedGoal = t(`health_goals_list.${goal}`) || goal;
+            
+            // Improved translation with fallback
+            let translatedGoal = t(`health_goals_list.${goal}`);
+            if (translatedGoal === `health_goals_list.${goal}`) {
+                // If translation not found, try to make it readable
+                translatedGoal = goal.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            }
+            
             const isHidden = hiddenGoals.includes(goal);
-
             const hideIcon = isHidden ? 
                 (showIconSVG || '👁️') : 
                 (hideIconSVG || '🚫👁️');
 
             goalsHtml += `
-                <div class="goal-item" data-goal="${goal}">
+                <div class="goal-item" data-goal="${goal}" style="${isHidden ? 'display: none;' : ''}">
                     <div class="goal-header">
                         <span class="goal-title">${translatedGoal}</span>
                         <div class="goal-actions">
@@ -1078,9 +1103,11 @@ function displayResults(data) {
         }
         healthGoals.innerHTML = goalsHtml;
 
-        // Update goals display and add drag and drop
-        updateGoalsDisplay();
-        setupDragAndDrop();
+        // Wait for DOM to be updated, then setup interactions
+        setTimeout(() => {
+            updateGoalsDisplay();
+            setupDragAndDrop();
+        }, 100);
     }
 
     // Update health explanation
@@ -1320,18 +1347,31 @@ function stopHealthTips() {
     }
 }
 
+// Enhanced error handling function
+function handleDOMError(error, context = 'DOM operation') {
+    console.error(`${context} error:`, error);
+    // Don't show errors for minor DOM issues during drag/drop
+    if (error.name === 'NotFoundError' || error.message.includes('insertBefore')) {
+        console.warn('Minor DOM manipulation issue, continuing...');
+        return;
+    }
+    showError("Er is een fout opgetreden. Herlaad de pagina als het probleem aanhoudt.", "Interface Fout");
+}
+
 // Global error handlers
 window.addEventListener('error', function(e) {
     console.error('Global JavaScript error:', e.error);
-    if (e.error) {
-        showError("Er is een JavaScript fout opgetreden. Herlaad de pagina en probeer opnieuw.", "JavaScript Fout");
+    if (e.error && e.error.name !== 'NotFoundError') {
+        handleDOMError(e.error, 'Global JavaScript');
     }
 });
 
 window.addEventListener('unhandledrejection', function(e) {
     console.error('Unhandled promise rejection:', e.reason);
     e.preventDefault();
-    showError("Er is een fout opgetreden bij het verwerken van een verzoek. Probeer opnieuw.", "Verzoek Fout");
+    if (!e.reason || !e.reason.message || !e.reason.message.includes('insertBefore')) {
+        showError("Er is een fout opgetreden bij het verwerken van een verzoek. Probeer opnieuw.", "Verzoek Fout");
+    }
 });
 
 // Keyboard shortcuts voor senioren
