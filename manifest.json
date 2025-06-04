@@ -31,18 +31,18 @@
         "default_popup": "popup.html",
         "default_title": "Silverfood Recipe Analyzer",
         "default_icon": {
-            "16": "icons/icon-16.png",
-            "32": "icons/icon-32.png",
-            "48": "icons/icon-48.png",
-            "128": "icons/icon-128.png"
+            "16": "static/icon-16.png",
+            "32": "static/icon-32.png",
+            "48": "static/icon-48.png",
+            "128": "static/icon-128.png"
         }
     },
 
     "icons": {
-        "16": "icons/icon-16.png",
-        "32": "icons/icon-32.png",
-        "48": "icons/icon-48.png",
-        "128": "icons/icon-128.png"
+        "16": "static/icon-16.png",
+        "32": "static/icon-32.png",
+        "48": "static/icon-48.png",
+        "128": "static/icon-128.png"
     },
 
     "web_accessible_resources": [

@@ -788,7 +788,7 @@ def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], 
     ]
 
     for pattern in patterns:
-match = re.match(pattern, text, re.IGNORECASE)
+        match = re.match(pattern, text, re.IGNORECASE)
         if match:
             if len(match.groups()) == 3:
                 quantity_str, unit_str, name = match.groups()
