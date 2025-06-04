@@ -10,6 +10,11 @@ from rapidfuzz import fuzz
 from urllib.parse import urlparse, urljoin
 import asyncio
 from debug_helper import debug
+import random
+import base64
+import hashlib
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configure logging first
 logging.basicConfig(
@@ -243,17 +248,458 @@ def scrape_with_requests_patterns(url: str) -> Tuple[List[str], str]:
 
     return ingredients, title
 
-def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
-    """AH-specific scraping method with multiple fallbacks."""
-    # Rotate between different realistic user agents
-    user_agents = [
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15'
+def get_advanced_user_agents():
+    """Get realistic user agents with current browser versions."""
+    return [
+        # Chrome Windows
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        
+        # Chrome macOS
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+        
+        # Firefox
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0',
+        'Mozilla/5.0 (X11; Linux x86_64; rv:121.0) Gecko/20100101 Firefox/121.0',
+        
+        # Safari
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Safari/605.1.15',
+        'Mozilla/5.0 (iPad; CPU OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+        
+        # Edge
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+        
+        # Mobile Chrome
+        'Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1'
+    ]
+
+def get_free_proxy_list():
+    """Get list of free proxies - basic implementation."""
+    # Deze proxies zijn vaak tijdelijk en kunnen uitvallen
+    return [
+        # Nederlandse proxies (vaak beter voor AH.nl)
+        {'http': 'http://185.93.3.123:8080', 'https': 'http://185.93.3.123:8080'},
+        {'http': 'http://31.220.109.82:80', 'https': 'http://31.220.109.82:80'},
+        
+        # Duitse proxies (dichtbij Nederland)
+        {'http': 'http://217.182.170.87:80', 'https': 'http://217.182.170.87:80'},
+        {'http': 'http://46.101.13.77:80', 'https': 'http://46.101.13.77:80'},
+        
+        # Belgische proxies
+        {'http': 'http://195.244.25.51:80', 'https': 'http://195.244.25.51:80'},
+    ]
+
+def create_session_with_retries():
+    """Create session with retry strategy."""
+    session = requests.Session()
+    
+    # Retry strategy
+    retry_strategy = Retry(
+        total=3,
+        status_forcelist=[429, 500, 502, 503, 504],
+        method_whitelist=["HEAD", "GET", "OPTIONS"],
+        backoff_factor=1
+    )
+    
+    adapter = HTTPAdapter(max_retries=retry_strategy)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    
+    return session
+
+def generate_realistic_headers(user_agent: str):
+    """Generate realistic headers based on user agent."""
+    is_mobile = 'Mobile' in user_agent or 'iPhone' in user_agent
+    is_firefox = 'Firefox' in user_agent
+    is_safari = 'Safari' in user_agent and 'Chrome' not in user_agent
+    
+    headers = {
+        'User-Agent': user_agent,
+        'Accept-Language': random.choice([
+            'nl-NL,nl;q=0.9,en;q=0.8',
+            'en-US,en;q=0.9,nl;q=0.8',
+            'nl,en-US;q=0.9,en;q=0.8'
+        ]),
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Cache-Control': random.choice(['max-age=0', 'no-cache']),
+    }
+    
+    if is_firefox:
+        headers.update({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+        })
+    elif is_safari:
+        headers.update({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        })
+    else:  # Chrome/Edge
+        headers.update({
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': random.choice(['none', 'same-origin', 'cross-site']),
+            'Sec-Fetch-User': '?1',
+            'Sec-Ch-Ua': f'"Chromium";v="120", "Not(A:Brand";v="24", "Google Chrome";v="120"',
+            'Sec-Ch-Ua-Mobile': '?1' if is_mobile else '?0',
+            'Sec-Ch-Ua-Platform': random.choice(['"Windows"', '"macOS"', '"Linux"']),
+        })
+    
+    # Add random extra headers sometimes
+    if random.choice([True, False]):
+        headers['X-Requested-With'] = 'XMLHttpRequest'
+    
+    return headers
+
+def scrape_ah_with_proxy_rotation(url: str) -> Tuple[List[str], str]:
+    """Advanced AH scraping with proxy rotation."""
+    logger.info("Trying advanced proxy rotation method for AH.nl")
+    
+    user_agents = get_advanced_user_agents()
+    proxies_list = get_free_proxy_list()
+    
+    # Add no-proxy as first option
+    proxies_list.insert(0, None)
+    
+    for attempt in range(len(proxies_list)):
+        try:
+            user_agent = random.choice(user_agents)
+            headers = generate_realistic_headers(user_agent)
+            proxies = proxies_list[attempt] if attempt < len(proxies_list) else None
+            
+            session = create_session_with_retries()
+            session.headers.update(headers)
+            
+            # Random delay to appear human
+            time.sleep(random.uniform(2, 6))
+            
+            logger.info(f"Attempt {attempt + 1}: Using {'proxy' if proxies else 'direct connection'}")
+            
+            # Try to access homepage first (cookie collection)
+            try:
+                session.get("https://www.ah.nl", 
+                           proxies=proxies, 
+                           timeout=15, 
+                           allow_redirects=True)
+                time.sleep(random.uniform(1, 3))
+            except:
+                pass
+            
+            # Now try the recipe page
+            response = session.get(url, 
+                                 proxies=proxies, 
+                                 timeout=25, 
+                                 allow_redirects=True)
+            
+            if response.status_code == 200:
+                logger.info(f"Success with attempt {attempt + 1}")
+                return parse_ah_response(response, url)
+            elif response.status_code == 403:
+                logger.warning(f"Attempt {attempt + 1} blocked (403)")
+                continue
+            else:
+                logger.warning(f"Attempt {attempt + 1} failed with status {response.status_code}")
+                continue
+                
+        except Exception as e:
+            logger.warning(f"Attempt {attempt + 1} failed: {e}")
+            continue
+    
+    raise Exception("Alle proxy pogingen gefaald voor AH.nl")
+
+def scrape_ah_via_api_endpoints(url: str) -> Tuple[List[str], str]:
+    """Try to find AH API endpoints for recipe data."""
+    logger.info("Trying AH API endpoint method")
+    
+    # Extract recipe ID from URL
+    recipe_id_match = re.search(r'/recept/(R-R\d+)/', url)
+    if not recipe_id_match:
+        raise Exception("Could not extract recipe ID from URL")
+    
+    recipe_id = recipe_id_match.group(1)
+    
+    # Try different API endpoints
+    api_endpoints = [
+        f"https://www.ah.nl/zoeken/api/products/recipe/{recipe_id}",
+        f"https://api.ah.nl/mobile-services/recipe/v2/{recipe_id}",
+        f"https://www.ah.nl/service/rest/delegate?url=/zoeken/api/products/recipe/{recipe_id}",
+        f"https://ah.nl/allerhande/api/recipe/{recipe_id}",
     ]
     
-    import random
+    user_agent = random.choice(get_advanced_user_agents())
+    headers = {
+        'User-Agent': user_agent,
+        'Accept': 'application/json, text/plain, */*',
+        'Accept-Language': 'nl-NL,nl;q=0.9',
+        'Referer': 'https://www.ah.nl/',
+        'Origin': 'https://www.ah.nl',
+        'X-Requested-With': 'XMLHttpRequest',
+    }
+    
+    session = create_session_with_retries()
+    
+    for endpoint in api_endpoints:
+        try:
+            logger.info(f"Trying API endpoint: {endpoint}")
+            response = session.get(endpoint, headers=headers, timeout=15)
+            
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    ingredients = extract_ingredients_from_api_data(data)
+                    if ingredients:
+                        title = data.get('name', 'AH Recept')
+                        logger.info(f"API success: {len(ingredients)} ingredients")
+                        return ingredients, title
+                except:
+                    continue
+            
+        except Exception as e:
+            logger.debug(f"API endpoint {endpoint} failed: {e}")
+            continue
+    
+    raise Exception("Geen werkende AH API endpoints gevonden")
+
+def extract_ingredients_from_api_data(data: Dict) -> List[str]:
+    """Extract ingredients from AH API response."""
+    ingredients = []
+    
+    # Try different possible structures
+    possible_paths = [
+        ['ingredients'],
+        ['recipe', 'ingredients'],
+        ['data', 'ingredients'],
+        ['recipeIngredient'],
+        ['recipe', 'recipeIngredient'],
+        ['ingredientLines'],
+        ['recipe', 'ingredientLines'],
+    ]
+    
+    for path in possible_paths:
+        current = data
+        try:
+            for key in path:
+                current = current[key]
+            
+            if isinstance(current, list):
+                for item in current:
+                    if isinstance(item, str):
+                        ingredients.append(item)
+                    elif isinstance(item, dict):
+                        # Try to get text from various fields
+                        text = item.get('name') or item.get('text') or item.get('description') or str(item)
+                        if text:
+                            ingredients.append(text)
+                            
+                if len(ingredients) >= 3:
+                    return ingredients
+                    
+        except (KeyError, TypeError):
+            continue
+    
+    return ingredients
+
+def scrape_ah_with_browser_automation_evasion(url: str) -> Tuple[List[str], str]:
+    """Advanced browser automation with anti-detection."""
+    if not SELENIUM_AVAILABLE:
+        raise Exception("Selenium niet beschikbaar voor geavanceerde methode")
+    
+    logger.info("Using advanced browser automation with anti-detection")
+    
+    options = Options()
+    options.add_argument('--headless')
+    options.add_argument('--no-sandbox')
+    options.add_argument('--disable-dev-shm-usage')
+    options.add_argument('--disable-gpu')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-plugins')
+    options.add_argument('--disable-images')
+    options.add_argument('--disable-javascript')  # Sometimes helps with detection
+    
+    # Anti-detection measures
+    options.add_argument('--disable-blink-features=AutomationControlled')
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
+    
+    # Random window size
+    width = random.randint(1200, 1920)
+    height = random.randint(800, 1080)
+    options.add_argument(f'--window-size={width},{height}')
+    
+    # Random user agent
+    user_agent = random.choice(get_advanced_user_agents())
+    options.add_argument(f'--user-agent={user_agent}')
+    
+    driver = None
+    try:
+        driver = webdriver.Chrome(options=options)
+        
+        # Execute script to hide automation markers
+        driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
+        
+        # Random delays and human-like behavior
+        time.sleep(random.uniform(2, 5))
+        
+        # Visit AH homepage first
+        driver.get("https://www.ah.nl")
+        time.sleep(random.uniform(3, 7))
+        
+        # Now visit recipe page
+        driver.get(url)
+        time.sleep(random.uniform(5, 10))
+        
+        # Try multiple selectors
+        selectors = [
+            '.recipe-ingredients li',
+            '[data-testid="ingredient"]',
+            '.ingredient-item',
+            '.ingredient',
+            'ul[class*="ingredient"] li',
+            '.recipe-ingredient-list li'
+        ]
+        
+        ingredients = []
+        for selector in selectors:
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                if elements:
+                    for element in elements:
+                        text = element.text.strip()
+                        if text and len(text) > 2:
+                            ingredients.append(text)
+                    
+                    if len(ingredients) >= 3:
+                        break
+            except:
+                continue
+        
+        # Get title
+        title = "AH Recept"
+        try:
+            title_element = driver.find_element(By.TAG_NAME, "h1")
+            title = title_element.text.strip()
+        except:
+            try:
+                title = driver.title
+            except:
+                pass
+        
+        if not ingredients:
+            raise Exception("Geen ingrediënten gevonden met geavanceerde browser methode")
+        
+        return ingredients, title
+        
+    finally:
+        if driver:
+            driver.quit()
+
+def parse_ah_response(response, url: str) -> Tuple[List[str], str]:
+    """Parse successful AH response."""
+    soup = BeautifulSoup(response.content, 'html.parser')
+    
+    # Save debug HTML
+    debug.save_debug_html(str(soup), url, "proxy_success")
+    
+    ingredients = []
+    title = "AH Recept"
+    
+    # Get title
+    title_selectors = [
+        'h1[data-testid="recipe-title"]',
+        'h1.recipe-title',
+        '.recipe-header h1',
+        'h1'
+    ]
+    
+    for selector in title_selectors:
+        title_elem = soup.select_one(selector)
+        if title_elem:
+            title = title_elem.get_text().strip()
+            break
+    
+    # Get ingredients with extended selectors
+    ah_selectors = [
+        '[data-testid="ingredient"]',
+        '[data-testid="ingredients"] li',
+        '.recipe-ingredients li',
+        '.ingredients-list li',
+        '.ingredient-item',
+        'ul[class*="ingredient"] li',
+        '[class*="ingredient-list"] li',
+        '.recipe-ingredient-list li',
+        'li[class*="ingredient"]',
+        '[data-ingredient]',
+        '.recipe-content ul li',
+        '.ingredients ul li',
+        # More specific AH selectors
+        '.ah-ingredient',
+        '.allerhande-ingredient',
+        '[data-qa="ingredient"]',
+        '.recipe-ingredients .ingredient'
+    ]
+    
+    for selector in ah_selectors:
+        try:
+            elements = soup.select(selector)
+            if elements:
+                temp_ingredients = []
+                for element in elements:
+                    text = element.get_text().strip()
+                    if text and len(text) > 2:
+                        text = text.replace('\n', ' ').replace('\t', ' ')
+                        text = ' '.join(text.split())
+                        temp_ingredients.append(text)
+                
+                if len(temp_ingredients) >= 3:
+                    ingredients = temp_ingredients
+                    break
+        except:
+            continue
+    
+    if not ingredients:
+        raise Exception("Geen ingrediënten gevonden in response")
+    
+    return ingredients, title
+
+def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
+    """AH-specific scraping method with all advanced techniques."""
+    logger.info("Starting advanced AH scraping with all techniques")
+    
+    # Try methods in order of preference
+    methods = [
+        ("Proxy Rotation", lambda: scrape_ah_with_proxy_rotation(url)),
+        ("API Endpoints", lambda: scrape_ah_via_api_endpoints(url)),
+        ("Browser Evasion", lambda: scrape_ah_with_browser_automation_evasion(url)),
+        ("Original Method", lambda: scrape_ah_original_method(url))
+    ]
+    
+    for method_name, method_func in methods:
+        try:
+            logger.info(f"Trying {method_name}")
+            ingredients, title = method_func()
+            if ingredients and len(ingredients) >= 3:
+                logger.info(f"Success with {method_name}: {len(ingredients)} ingredients")
+                return ingredients, title
+        except Exception as e:
+            logger.warning(f"{method_name} failed: {e}")
+            continue
+    
+    raise Exception("Alle geavanceerde AH scraping methoden gefaald")
+
+def scrape_ah_original_method(url: str) -> Tuple[List[str], str]:
+    """Original AH scraping method as fallback."""
+    user_agents = get_advanced_user_agents()
+    
     headers = {
         'User-Agent': random.choice(user_agents),
         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',

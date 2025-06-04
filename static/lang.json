@@ -23,7 +23,7 @@
     "hide_goal": "Doel verbergen",
     "show_goal": "Doel tonen",
     "show_hidden_goals": "Bekijk verborgen doelen",
-    "hide_hidden_goals": "Verberg verborgen doelen",
+    "hide_hidden_goals": "Verberg verborgen doelen"
   },
   "en": {
     "recipe_analysis": "Recipe Analysis",
@@ -62,6 +62,16 @@
     "protein": "Protein",
     "carbs": "Carbohydrates", 
     "fat": "Fat",
-    "fiber": "Fiber"
+    "fiber": "Fiber",
+    "health_tips": [
+        "💧 Drink genoeg water gedurende de dag",
+        "🥗 Eet een regenboog aan groenten en fruit",
+        "🏃 Beweeg minimaal 30 minuten per dag",
+        "😴 Zorg voor 7-9 uur slaap per nacht",
+        "🧘 Neem tijd voor ontspanning en mindfulness"
+    ],
+    "nutrition_labels": {
+      
+    }
   }
 }
