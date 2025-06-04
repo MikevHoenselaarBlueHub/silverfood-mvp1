@@ -9,9 +9,152 @@
     <link rel="icon" type="image/png" sizes="48x48" href="/static/icon-48.png">
     <link rel="icon" type="image/png" sizes="128x128" href="/static/icon-128.png">
     <link rel="apple-touch-icon" sizes="128x128" href="/static/icon-128.png">
-    <meta name="theme-color" content="#4CAF50">
+    <meta name="theme-color" content="#f58029">
     <link rel="stylesheet" href="/static/style.css"></link>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 960px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            background-color: rgb(245, 128, 41);
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .header-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .logo {
+            max-width: 200px;
+            height: auto;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            font-weight: 500;
+        }
+
+        .main {
+            padding: 20px;
+        }
+
+        .input-section {
+            margin-bottom: 20px;
+        }
+
+        .tab-container {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .tab-buttons {
+            display: flex;
+        }
+
+        .tab-btn {
+            background-color: #f0f0f0;
+            border: none;
+            color: #666;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        .tab-btn.active {
+            background-color: #fff;
+            color: rgb(245, 128, 41);
+            border-bottom: 2px solid rgb(245, 128, 41);
+        }
+
+        .tab-content {
+            padding: 20px;
+        }
+
+        .tab-pane {
+            display: none;
+        }
+
+        .tab-pane.active {
+            display: block;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        input[type="url"],
+        textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+            resize: vertical;
+        }
+
+        .btn-primary {
+            background-color: rgb(245, 128, 41);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1em;
+            transition: background-color 0.3s;
+        }
+
+        .btn-primary:hover {
+            background-color: #e17223;
+        }
+
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f4f4f4;
+            border-radius: 8px;
+        }
+
+       .footer {
+            text-align: center;
+            padding: 20px;
+            color: #777;
+            border-top: 1px solid #eee;
+        }
+
+        #error {
+            color: red;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
@@ -116,10 +259,28 @@
 
         <footer class="footer">
             <p id="footer-copyright">&copy; <span id="current-year">2024</span> Silverfood Universum. Gezond eten voor iedereen.</p>
-            <p class="version" id="version-text">Silverfood v4.0.0 - Multi-taal Receptenanalyse</p>
+            <p class="version" id="version-text">Silverfood v4.1.0 - Multi-taal Receptenanalyse</p>
         </footer>
     </div>
 
     <script src="/static/script.js"></script>
+    <script>
+        // Basic tab functionality
+        document.querySelectorAll('.tab-btn').forEach(button => {
+            button.addEventListener('click', () => {
+                const tabId = button.dataset.tab;
+
+                // Deactivate all tabs and tab buttons
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+                document.querySelectorAll('.tab-pane').forEach(pane => pane.classList.remove('active'));
+
+                // Activate current tab and button
+                button.classList.add('active');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+
+         document.getElementById('current-year').textContent = new Date().getFullYear();
+    </script>
 </body>
 </html>

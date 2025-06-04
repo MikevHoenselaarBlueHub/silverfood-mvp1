@@ -35,7 +35,7 @@ async function loadLanguage(lang = 'nl') {
 
 function t(key) {
     const keys = key.split('.');
-    let value = translations[currentLanguage];
+    let value = translations;
 
     for (const k of keys) {
         if (value && typeof value === 'object') {
@@ -46,6 +46,11 @@ function t(key) {
     }
 
     return value || key;
+}
+
+// Backward compatibility function for getText
+function getText(key) {
+    return t(key);
 }
 
 function updateUILanguage() {

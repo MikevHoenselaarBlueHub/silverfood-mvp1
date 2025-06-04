@@ -1,7 +1,7 @@
 {
     "manifest_version": 3,
     "name": "Silverfood Recipe Analyzer",
-    "version": "3.5.0",
+    "version": "4.0.0",
     "description": "Analyseer de gezondheid van recepten op elke website",
 
     "permissions": [

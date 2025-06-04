@@ -14,14 +14,14 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgb(245, 128, 41) 0%, #e67e22 100%);
             color: #333;
             width: 380px;
             min-height: 500px;
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgb(245, 128, 41) 0%, #e67e22 100%);
             color: white;
             padding: 20px;
             text-align: center;
@@ -29,9 +29,18 @@
         }
 
         .logo {
-            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 20px;
             font-weight: bold;
             margin-bottom: 5px;
+        }
+
+        .logo img {
+            height: 32px;
+            width: auto;
         }
 
         .tagline {
@@ -52,7 +61,7 @@
             border-radius: 10px;
             padding: 15px;
             margin-bottom: 20px;
-            border-left: 4px solid #667eea;
+            border-left: 4px solid rgb(245, 128, 41);
         }
 
         .status-indicator {
@@ -79,7 +88,7 @@
         }
 
         .action-button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgb(245, 128, 41) 0%, #e67e22 100%);
             color: white;
             border: none;
             padding: 12px 20px;
@@ -94,7 +103,7 @@
 
         .action-button:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 4px 12px rgba(245, 128, 41, 0.3);
         }
 
         .action-button:disabled {
@@ -104,12 +113,12 @@
 
         .secondary-button {
             background: white;
-            color: #667eea;
-            border: 2px solid #667eea;
+            color: rgb(245, 128, 41);
+            border: 2px solid rgb(245, 128, 41);
         }
 
         .secondary-button:hover:not(:disabled) {
-            background: #667eea;
+            background: rgb(245, 128, 41);
             color: white;
         }
 
@@ -122,7 +131,7 @@
         .health-score {
             text-align: center;
             padding: 20px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgb(245, 128, 41) 0%, #e67e22 100%);
             color: white;
             border-radius: 10px;
             margin-bottom: 15px;
@@ -156,7 +165,7 @@
         .stat-number {
             font-size: 18px;
             font-weight: bold;
-            color: #667eea;
+            color: rgb(245, 128, 41);
         }
 
         .stat-label {
@@ -190,7 +199,7 @@
         .ingredient-score {
             font-size: 12px;
             font-weight: bold;
-            color: #667eea;
+            color: rgb(245, 128, 41);
             background: white;
             padding: 2px 6px;
             border-radius: 4px;
@@ -217,7 +226,7 @@
             width: 20px;
             height: 20px;
             margin-left: 10px;
-            border: 2px solid #667eea;
+            border: 2px solid rgb(245, 128, 41);
             border-radius: 50%;
             border-top-color: transparent;
             animation: spin 1s linear infinite;
@@ -249,7 +258,7 @@
         }
 
         .footer a {
-            color: #667eea;
+            color: rgb(245, 128, 41);
             text-decoration: none;
         }
     </style>
@@ -257,7 +266,10 @@
 <body>
     <div class="header">
         <button class="debug-toggle" id="debugToggle">🐛 Debug</button>
-        <div class="logo">🥗 Silverfood</div>
+        <div class="logo">
+            <img src="static/silverfood-logo.png" alt="Silverfood Logo">
+            Silverfood
+        </div>
         <div class="tagline">Gezonde recepten, slimme keuzes</div>
     </div>
 

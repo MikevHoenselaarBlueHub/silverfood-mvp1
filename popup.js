@@ -13,10 +13,22 @@ class SilverfoodPopup {
             const response = await fetch(chrome.runtime.getURL('static/lang_nl.json'));
             if (response.ok) {
                 this.translations = await response.json();
+                this.updateUI();
             }
         } catch (error) {
             console.log('Failed to load translations');
         }
+    }
+
+    updateUI() {
+        // Update all elements with data-i18n attributes
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            const text = this.t(key);
+            if (text !== key) {
+                element.textContent = text;
+            }
+        });
     }
 
     t(key) {
@@ -70,6 +82,7 @@ class SilverfoodPopup {
     init() {
         document.addEventListener('DOMContentLoaded', async () => {
             await this.getApiUrlFromConfig();
+            await this.loadTranslations();
             this.setupEventListeners();
             this.checkCurrentPage();
         });
