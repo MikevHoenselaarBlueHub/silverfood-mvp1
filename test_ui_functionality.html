@@ -1,0 +1,290 @@
+
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Silverfood UI Tests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            border: 1px solid #ddd;
+            margin: 20px 0;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .pass { background: #d4edda; color: #155724; }
+        .fail { background: #f8d7da; color: #721c24; }
+        .test-button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        .test-button:hover {
+            background: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Silverfood UI Functionality Tests</h1>
+    
+    <div class="test-section">
+        <h2>JavaScript Loading Tests</h2>
+        <button class="test-button" onclick="testJavaScriptLoading()">Test JS Loading</button>
+        <div id="js-test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>DOM Element Tests</h2>
+        <button class="test-button" onclick="testDOMElements()">Test DOM Elements</button>
+        <div id="dom-test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Local Storage Tests</h2>
+        <button class="test-button" onclick="testLocalStorage()">Test Local Storage</button>
+        <div id="storage-test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Tab Functionality Tests</h2>
+        <button class="test-button" onclick="testTabFunctionality()">Test Tab Switching</button>
+        <div id="tab-test-results"></div>
+    </div>
+
+    <div class="test-section">
+        <h2>Form Validation Tests</h2>
+        <button class="test-button" onclick="testFormValidation()">Test Form Validation</button>
+        <div id="form-test-results"></div>
+    </div>
+
+    <script>
+        let testResults = {
+            passed: 0,
+            failed: 0
+        };
+
+        function logTest(container, testName, passed, message = '') {
+            const result = document.createElement('div');
+            result.className = `test-result ${passed ? 'pass' : 'fail'}`;
+            result.innerHTML = `${passed ? '✅' : '❌'} ${testName}${message ? ': ' + message : ''}`;
+            document.getElementById(container).appendChild(result);
+            
+            if (passed) testResults.passed++;
+            else testResults.failed++;
+        }
+
+        function testJavaScriptLoading() {
+            const container = 'js-test-results';
+            document.getElementById(container).innerHTML = '';
+
+            // Test if main functions exist
+            const functions = [
+                'analyzeRecipe',
+                'updatePortions', 
+                'toggleGoalVisibility',
+                'changeSortOrder',
+                'loadLanguage'
+            ];
+
+            functions.forEach(func => {
+                const exists = typeof window[func] === 'function';
+                logTest(container, `Function ${func}`, exists);
+            });
+
+            // Test if global variables exist
+            const variables = ['currentLanguage', 'translations', 'currentPortions'];
+            variables.forEach(variable => {
+                const exists = typeof window[variable] !== 'undefined';
+                logTest(container, `Variable ${variable}`, exists);
+            });
+        }
+
+        function testDOMElements() {
+            const container = 'dom-test-results';
+            document.getElementById(container).innerHTML = '';
+
+            // Test critical DOM elements
+            const elements = [
+                'recipeUrl',
+                'recipeText', 
+                'analyzeBtn',
+                'results',
+                'error'
+            ];
+
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                const exists = element !== null;
+                logTest(container, `Element #${id}`, exists);
+            });
+
+            // Test tab elements
+            const tabElements = document.querySelectorAll('.tab-btn');
+            logTest(container, 'Tab buttons', tabElements.length >= 2, `Found ${tabElements.length} tabs`);
+
+            const tabPanes = document.querySelectorAll('.tab-pane');
+            logTest(container, 'Tab panes', tabPanes.length >= 2, `Found ${tabPanes.length} panes`);
+        }
+
+        function testLocalStorage() {
+            const container = 'storage-test-results';
+            document.getElementById(container).innerHTML = '';
+
+            try {
+                // Test localStorage availability
+                localStorage.setItem('test', 'value');
+                const retrieved = localStorage.getItem('test');
+                localStorage.removeItem('test');
+                
+                logTest(container, 'LocalStorage available', retrieved === 'value');
+
+                // Test specific storage keys used by app
+                const keys = ['savedPortions', 'hiddenHealthGoals', 'ingredientSortOrder'];
+                keys.forEach(key => {
+                    // Set test value
+                    localStorage.setItem(key, JSON.stringify('test-value'));
+                    const stored = localStorage.getItem(key);
+                    localStorage.removeItem(key);
+                    
+                    logTest(container, `Storage key ${key}`, stored !== null);
+                });
+
+            } catch (e) {
+                logTest(container, 'LocalStorage', false, e.message);
+            }
+        }
+
+        function testTabFunctionality() {
+            const container = 'tab-test-results';
+            document.getElementById(container).innerHTML = '';
+
+            const tabButtons = document.querySelectorAll('.tab-btn');
+            const tabPanes = document.querySelectorAll('.tab-pane');
+
+            // Test if tabs can be switched
+            if (tabButtons.length >= 2) {
+                // Click second tab
+                tabButtons[1].click();
+                
+                setTimeout(() => {
+                    const secondTabActive = tabButtons[1].classList.contains('active');
+                    logTest(container, 'Tab switching', secondTabActive);
+                    
+                    // Test if corresponding pane is shown
+                    const targetPane = document.getElementById(tabButtons[1].getAttribute('data-tab'));
+                    const paneActive = targetPane && targetPane.classList.contains('active');
+                    logTest(container, 'Tab pane activation', paneActive);
+                    
+                    // Switch back to first tab
+                    tabButtons[0].click();
+                }, 100);
+            } else {
+                logTest(container, 'Tab buttons', false, 'Not enough tabs found');
+            }
+        }
+
+        function testFormValidation() {
+            const container = 'form-test-results';
+            document.getElementById(container).innerHTML = '';
+
+            const urlInput = document.getElementById('recipeUrl');
+            const textArea = document.getElementById('recipeText');
+
+            if (urlInput) {
+                // Test URL validation
+                urlInput.value = 'invalid-url';
+                urlInput.dispatchEvent(new Event('input'));
+                
+                setTimeout(() => {
+                    const hasErrorStyle = urlInput.style.borderColor === 'rgb(220, 53, 69)' || 
+                                         urlInput.style.borderColor === '#dc3545';
+                    logTest(container, 'URL validation (invalid)', hasErrorStyle);
+                    
+                    // Test valid URL
+                    urlInput.value = 'https://www.ah.nl/allerhande/recept/test';
+                    urlInput.dispatchEvent(new Event('input'));
+                    
+                    setTimeout(() => {
+                        const hasSuccessStyle = urlInput.style.borderColor === 'rgb(40, 167, 69)' || 
+                                               urlInput.style.borderColor === '#28a745';
+                        logTest(container, 'URL validation (valid)', hasSuccessStyle);
+                    }, 100);
+                }, 100);
+            } else {
+                logTest(container, 'URL input element', false, 'Element not found');
+            }
+
+            if (textArea) {
+                logTest(container, 'Text area element', true);
+                
+                // Test if textarea accepts input
+                const originalValue = textArea.value;
+                textArea.value = 'Test ingredients';
+                const inputAccepted = textArea.value === 'Test ingredients';
+                logTest(container, 'Text area input', inputAccepted);
+                
+                // Restore original value
+                textArea.value = originalValue;
+            } else {
+                logTest(container, 'Text area element', false, 'Element not found');
+            }
+        }
+
+        // Auto-run basic tests on page load
+        window.addEventListener('load', () => {
+            console.log('🧪 UI Test page loaded - Click buttons to run tests');
+            
+            // Show summary after each test
+            const originalLogTest = logTest;
+            logTest = function(...args) {
+                originalLogTest(...args);
+                updateSummary();
+            };
+        });
+
+        function updateSummary() {
+            let summaryElement = document.getElementById('test-summary');
+            if (!summaryElement) {
+                summaryElement = document.createElement('div');
+                summaryElement.id = 'test-summary';
+                summaryElement.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    background: white;
+                    border: 2px solid #ddd;
+                    padding: 15px;
+                    border-radius: 8px;
+                    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                    z-index: 1000;
+                `;
+                document.body.appendChild(summaryElement);
+            }
+            
+            const total = testResults.passed + testResults.failed;
+            summaryElement.innerHTML = `
+                <h4>📊 Test Summary</h4>
+                <div>Total: ${total}</div>
+                <div style="color: green;">✅ Passed: ${testResults.passed}</div>
+                <div style="color: red;">❌ Failed: ${testResults.failed}</div>
+                <div>Success Rate: ${total > 0 ? ((testResults.passed/total)*100).toFixed(1) : 0}%</div>
+            `;
+        }
+    </script>
+</body>
+</html>

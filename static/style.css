@@ -465,7 +465,6 @@ body {
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-    cursor: move;
     user-select: none;
 }
 
@@ -488,7 +487,7 @@ body {
 .goal-actions {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
 }
 
 .hide-goal-btn {
@@ -1022,14 +1021,22 @@ button:focus, input:focus {
 .drag-handle {
     font-size: 16px;
     line-height: 1;
-    margin-right: 10px;
     color: #666;
     cursor: move;
     user-select: none;
+    padding: 4px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
 }
 
 .drag-handle:hover {
     color: #333;
+    background: rgba(0,0,0,0.1);
+}
+
+.goal-title {
+    cursor: text;
+    user-select: text;
 }
 
 .drag-placeholder {

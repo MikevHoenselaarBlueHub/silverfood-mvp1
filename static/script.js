@@ -260,24 +260,28 @@ function setupDragAndDrop() {
     }
 
     goalItems.forEach(item => {
-        item.addEventListener('dragstart', (e) => {
-            draggedElement = item;
-            item.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
+        const dragHandle = item.querySelector('.drag-handle');
+        
+        if (dragHandle) {
+            dragHandle.addEventListener('dragstart', (e) => {
+                draggedElement = item;
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
 
-            placeholder = createPlaceholder();
-        });
-
-        item.addEventListener('dragend', () => {
-            item.classList.remove('dragging');
-            if (placeholder && placeholder.parentNode) {
-                placeholder.remove();
-            }
-            document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
-                el.classList.remove('drag-over', 'drag-over-bottom');
+                placeholder = createPlaceholder();
             });
-            draggedElement = null;
-        });
+
+        dragHandle.addEventListener('dragend', () => {
+                item.classList.remove('dragging');
+                if (placeholder && placeholder.parentNode) {
+                    placeholder.remove();
+                }
+                document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
+                    el.classList.remove('drag-over', 'drag-over-bottom');
+                });
+                draggedElement = null;
+            });
+        }
 
         item.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -851,12 +855,12 @@ function displayResults(data) {
                 (hideIconSVG || '🚫👁️');
 
             goalsHtml += `
-                <div class="goal-item" draggable="true" data-goal="${goal}">
+                <div class="goal-item" data-goal="${goal}">
                     <div class="goal-header">
-                        <span class="drag-handle" title="Versleep om volgorde te wijzigen">⋮⋮</span>
                         <span class="goal-title">${translatedGoal}</span>
                         <div class="goal-actions">
                             <span class="goal-score">${score}/10</span>
+                            <span class="drag-handle" title="Versleep om volgorde te wijzigen" draggable="true">⋮⋮</span>
                             <button class="hide-goal-btn" 
                                     onclick="toggleGoalVisibility('${goal}')"
                                     title="${isHidden ? t('show_goal') : t('hide_goal')}"
