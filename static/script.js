@@ -134,13 +134,13 @@ async function analyzeRecipe() {
             if (!inputData.startsWith("http://") && !inputData.startsWith("https://")) {
                 showError(
                     "De URL moet beginnen met http:// of https://",
-                    "Ongeldige URL",
+                    "Ongeldige URL"
                 );
                 recipeUrlInput.focus();
                 return;
             }
         } else {
-        inputData = window.recipeTextArea.value.trim();
+            inputData = window.recipeTextArea.value.trim();
             analysisType = 'text';
 
             if (!inputData) {
