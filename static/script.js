@@ -130,7 +130,7 @@ async function analyzeRecipe() {
                 return;
             }
 
-        // Basis URL validatie
+            // Basis URL validatie
             if (!inputData.startsWith("http://") && !inputData.startsWith("https://")) {
                 showError(
                     "De URL moet beginnen met http:// of https://",
