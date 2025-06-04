@@ -466,6 +466,19 @@ body {
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     user-select: none;
+    transition: all 0.3s ease-in-out;
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.goal-item.hiding {
+    transform: translateX(-100%);
+    opacity: 0;
+}
+
+.goal-item.showing {
+    transform: translateX(0);
+    opacity: 1;
 }
 
 .goal-header {

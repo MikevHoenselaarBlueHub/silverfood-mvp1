@@ -140,14 +140,54 @@ function saveHiddenGoals() {
 }
 
 function toggleGoalVisibility(goalName) {
+    const goalElement = document.querySelector(`[data-goal="${goalName}"]`);
+    if (!goalElement) return;
+
     const index = hiddenGoals.indexOf(goalName);
-    if (index > -1) {
+    const isCurrentlyHidden = index > -1;
+
+    if (isCurrentlyHidden) {
+        // Show the goal with animation
         hiddenGoals.splice(index, 1);
+        goalElement.style.transform = 'translateX(-100%)';
+        goalElement.style.opacity = '0';
+        goalElement.style.display = 'block';
+        
+        setTimeout(() => {
+            goalElement.style.transition = 'all 0.3s ease-in-out';
+            goalElement.style.transform = 'translateX(0)';
+            goalElement.style.opacity = '1';
+        }, 10);
     } else {
+        // Hide the goal with animation
         hiddenGoals.push(goalName);
+        goalElement.style.transition = 'all 0.3s ease-in-out';
+        goalElement.style.transform = 'translateX(-100%)';
+        goalElement.style.opacity = '0';
+        
+        setTimeout(() => {
+            goalElement.style.display = 'none';
+            goalElement.style.transform = '';
+            goalElement.style.opacity = '';
+            goalElement.style.transition = '';
+        }, 300);
     }
+
     saveHiddenGoals();
-    updateGoalsDisplay();
+    
+    // Update the button icon immediately
+    const hideButton = goalElement.querySelector('.hide-goal-btn');
+    if (hideButton) {
+        hideButton.innerHTML = isCurrentlyHidden ? 
+            (hideIconSVG || '🚫👁️') : 
+            (showIconSVG || '👁️');
+        hideButton.title = isCurrentlyHidden ? t('hide_goal') : t('show_goal');
+    }
+
+    // Update hidden goals toggle after animation
+    setTimeout(() => {
+        updateHiddenGoalsToggle();
+    }, isCurrentlyHidden ? 100 : 350);
 }
 
 async function loadSVGIcon(iconPath) {
@@ -178,16 +218,18 @@ function updateGoalsDisplay() {
         const titleElement = goal.querySelector('.goal-title');
         const goalName = goalDataAttribute || (titleElement ? titleElement.textContent.trim() : '');
 
-        if (hiddenGoals.includes(goalName)) {
+        const isHidden = hiddenGoals.includes(goalName);
+        
+        // Only update display if it's not already in the correct state
+        if (isHidden && goal.style.display !== 'none') {
             goal.style.display = 'none';
-        } else {
+        } else if (!isHidden && goal.style.display === 'none') {
             goal.style.display = 'block';
         }
 
         // Update button icon
         const hideButton = goal.querySelector('.hide-goal-btn');
         if (hideButton) {
-            const isHidden = hiddenGoals.includes(goalName);
             hideButton.innerHTML = isHidden ? 
                 (showIconSVG || '👁️') : 
                 (hideIconSVG || '🚫👁️');
@@ -221,9 +263,13 @@ function updateHiddenGoalsToggle() {
             container.appendChild(hiddenSection);
         }
 
-        toggleButton.innerHTML = `${t('show_hidden_goals')} <span style="margin-left: 8px;">▼</span>`;
-        toggleButton.title = `${hiddenGoals.length} verborgen doelen bekijken`;
+        const isExpanded = hiddenSection && hiddenSection.style.display !== 'none';
+        toggleButton.innerHTML = `${isExpanded ? t('hide_hidden_goals') : t('show_hidden_goals')} <span style="margin-left: 8px;">${isExpanded ? '▲' : '▼'}</span>`;
+        toggleButton.title = `${hiddenGoals.length} verborgen doelen ${isExpanded ? 'verbergen' : 'bekijken'}`;
         toggleButton.style.display = 'block';
+        
+        // Update hidden section content
+        updateHiddenGoalsSection();
     } else {
         if (toggleButton) {
             toggleButton.style.display = 'none';
@@ -240,22 +286,44 @@ function toggleHiddenGoalsSection() {
 
     if (!section || !button) return;
 
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        button.textContent = t('hide_hidden_goals');
+    const isCurrentlyVisible = section.style.display !== 'none';
 
-        // Move hidden goals to section
-        const hiddenGoalElements = document.querySelectorAll('.goal-item.hidden');
-        section.innerHTML = '';
-        hiddenGoalElements.forEach(goal => {
-            const clone = goal.cloneNode(true);
-            clone.classList.remove('hidden');
-            section.appendChild(clone);
-        });
-    } else {
+    if (isCurrentlyVisible) {
         section.style.display = 'none';
-        button.textContent = t('show_hidden_goals');
+        button.innerHTML = `${t('show_hidden_goals')} <span style="margin-left: 8px;">▼</span>`;
+    } else {
+        section.style.display = 'block';
+        button.innerHTML = `${t('hide_hidden_goals')} <span style="margin-left: 8px;">▲</span>`;
+        updateHiddenGoalsSection();
     }
+}
+
+function updateHiddenGoalsSection() {
+    const section = document.getElementById('hidden-goals-section');
+    if (!section || hiddenGoals.length === 0) return;
+
+    section.innerHTML = '';
+
+    // Find all hidden goals and add them to the section
+    hiddenGoals.forEach(goalName => {
+        const originalGoal = document.querySelector(`[data-goal="${goalName}"]`);
+        if (originalGoal && originalGoal.style.display === 'none') {
+            const clone = originalGoal.cloneNode(true);
+            clone.style.display = 'block';
+            clone.style.opacity = '0.7';
+            clone.style.background = '#f5f5f5';
+            
+            // Update the hide button to show "show" functionality
+            const hideButton = clone.querySelector('.hide-goal-btn');
+            if (hideButton) {
+                hideButton.innerHTML = showIconSVG || '👁️';
+                hideButton.title = t('show_goal');
+                hideButton.onclick = () => toggleGoalVisibility(goalName);
+            }
+            
+            section.appendChild(clone);
+        }
+    });
 }
 
 // Enhanced drag and drop with proper drop zones
