@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Startup script voor Silverfood API
@@ -12,29 +11,20 @@ import os
 def install_requirements():
     """Installeer requirements.txt als deze bestaat"""
     if os.path.exists('requirements.txt'):
-        print("🔧 Installing Python dependencies via UPM...")
+        print("🔧 Installing Python dependencies...")
         try:
-            # Read requirements.txt and install each package individually
-            with open('requirements.txt', 'r') as f:
-                packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
-            
-            # Install packages individually since UPM doesn't support -r flag
-            for package in packages:
-                if package:
-                    subprocess.check_call(['upm', 'add', package])
+            # In Replit werkt dit beter dan individuele packages
+            subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-r', 'requirements.txt'])
             print("✅ Dependencies installed successfully")
         except subprocess.CalledProcessError as e:
             print(f"❌ Failed to install dependencies: {e}")
-            print("ℹ️  Continuing without fresh install - dependencies might already be installed")
-            # Don't fail if UPM fails - dependencies might already be installed
+            print("ℹ️  Continuing anyway - dependencies might already be installed")
     return True
 
 def start_server():
     """Start de FastAPI server"""
     print("🚀 Starting Silverfood API server...")
     try:
-        # Check if uvicorn is available
-        subprocess.check_call([sys.executable, '-c', 'import uvicorn'])
         subprocess.check_call([
             sys.executable, '-m', 'uvicorn', 
             'api:app', 
@@ -44,18 +34,15 @@ def start_server():
         ])
     except subprocess.CalledProcessError as e:
         print(f"❌ Failed to start server: {e}")
-        print("ℹ️  Try running: upm add fastapi uvicorn")
         return False
     return True
 
 if __name__ == "__main__":
     print("🍽️ Silverfood API - Startup Script")
     print("=" * 40)
-    
+
     # Installeer dependencies
-    if not install_requirements():
-        sys.exit(1)
-    
+    install_requirements()
+
     # Start server
-    if not start_server():
-        sys.exit(1)
+    start_server()
