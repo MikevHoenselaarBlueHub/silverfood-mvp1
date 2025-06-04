@@ -5,7 +5,7 @@ let translations = {};
 // Load language file
 async function loadLanguage(lang = 'nl') {
     try {
-        const response = await fetch('/static/lang.json');
+        const response = await fetch(`/static/lang_${lang}.json`);
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
@@ -16,6 +16,20 @@ async function loadLanguage(lang = 'nl') {
         updateUILanguage();
     } catch (error) {
         console.warn('Language loading failed, using defaults:', error.message);
+         // Fallback to Dutch if other language fails
+         if (lang !== 'nl') {
+            try {
+                const fallbackResponse = await fetch('/static/lang_nl.json');
+                if (!fallbackResponse.ok) {
+                    throw new Error(`HTTP ${fallbackResponse.status}: ${fallbackResponse.statusText}`);
+                }
+                const fallbackData = await fallbackResponse.json();
+                translations = fallbackData;
+                console.log('Fallback language loaded successfully');
+            } catch (fallbackError) {
+                console.warn('Error loading fallback language:', fallbackError.message);
+            }
+        }
     }
 }
 
@@ -1322,3 +1336,5 @@ window.addEventListener("load", async () => {
         showError("Er is een fout opgetreden bij het laden van de applicatie.", "Initialisatiefout");
     }
 });
+
+// This script has been modified to load language files separately for each language and to adjust the key structure for translations.
