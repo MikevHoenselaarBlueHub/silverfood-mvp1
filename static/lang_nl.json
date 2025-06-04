@@ -46,5 +46,22 @@
     "🏃 Beweeg minimaal 30 minuten per dag",
     "😴 Zorg voor 7-9 uur slaap per nacht",
     "🧘 Neem tijd voor ontspanning en mindfulness"
-  ]
+  ],
+  "version": "Silverfood v4.0.0 - Multi-taal Receptenanalyse",
+  "footer_copyright": "Silverfood Universum. Gezond eten voor iedereen.",
+  "chrome_extension": {
+    "analyzing": "Analyseren...",
+    "analyze_page": "Analyseer Pagina",
+    "open_full_app": "Open Volledige App",
+    "checking": "Controleren...",
+    "recipe_detected": "Recept pagina gedetecteerd",
+    "no_recipe_detected": "Geen recept pagina gedetecteerd",
+    "powered_by": "Powered by Silverfood",
+    "health_score": "Gezondheidscore",
+    "ingredients_found": "ingrediënten gevonden",
+    "page_not_supported": "Deze pagina wordt niet ondersteund",
+    "api_call_failed": "API aanroep mislukt",
+    "analysis_failed": "Analyse mislukt",
+    "check_recipe_page": "Controleer of dit een receptpagina is"
+  }
 }

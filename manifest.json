@@ -47,7 +47,7 @@
 
     "web_accessible_resources": [
         {
-            "resources": ["popup.html", "popup.js"],
+            "resources": ["popup.html", "popup.js", "static/lang_nl.json", "static/lang_en.json"],
             "matches": ["<all_urls>"]
         }
     ]

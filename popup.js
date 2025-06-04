@@ -1,10 +1,35 @@
 // Popup script for Silverfood Chrome Extension
 class SilverfoodPopup {
     constructor() {
-        // Get API URL from config endpoint
+        this.translations = {};
+        this.currentLanguage = 'nl';
         this.getApiUrlFromConfig();
-
+        this.loadTranslations();
         this.init();
+    }
+
+    async loadTranslations() {
+        try {
+            const response = await fetch(chrome.runtime.getURL('static/lang_nl.json'));
+            if (response.ok) {
+                this.translations = await response.json();
+            }
+        } catch (error) {
+            console.log('Failed to load translations');
+        }
+    }
+
+    t(key) {
+        const keys = key.split('.');
+        let value = this.translations;
+        for (const k of keys) {
+            if (value && typeof value === 'object') {
+                value = value[k];
+            } else {
+                break;
+            }
+        }
+        return value || key;
     }
 
     async getApiUrlFromConfig() {
@@ -68,10 +93,10 @@ class SilverfoodPopup {
             // Check if it's likely a recipe page
             const isRecipePage = this.isRecipePage(tab.url);
             if (isRecipePage) {
-                document.getElementById('status').innerHTML = '✅ Recept pagina gedetecteerd';
+                document.getElementById('status').innerHTML = `✅ ${this.t('chrome_extension.recipe_detected')}`;
                 document.getElementById('analyzeBtn').disabled = false;
             } else {
-                document.getElementById('status').innerHTML = '⚠️ Geen recept pagina gedetecteerd';
+                document.getElementById('status').innerHTML = `⚠️ ${this.t('chrome_extension.no_recipe_detected')}`;
                 document.getElementById('analyzeBtn').disabled = true;
             }
         } catch (error) {
@@ -96,13 +121,13 @@ class SilverfoodPopup {
 
         try {
             analyzeBtn.disabled = true;
-            analyzeBtn.textContent = 'Analyseren...';
-            resultsDiv.innerHTML = '<div class="loading">Recept wordt geanalyseerd...</div>';
+            analyzeBtn.textContent = this.t('chrome_extension.analyzing');
+            resultsDiv.innerHTML = `<div class="loading">${this.t('chrome_extension.analyzing')}</div>`;
 
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
 
             if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
-                throw new Error('Deze pagina wordt niet ondersteund');
+                throw new Error(this.t('chrome_extension.page_not_supported'));
             }
 
             // Call our API
@@ -125,12 +150,12 @@ class SilverfoodPopup {
             resultsDiv.innerHTML = `
                 <div class="error">
                     <p>❌ ${error.message}</p>
-                    <p><small>Controleer of dit een receptpagina is</small></p>
+                    <p><small>${this.t('chrome_extension.check_recipe_page')}</small></p>
                 </div>
             `;
         } finally {
             analyzeBtn.disabled = false;
-            analyzeBtn.textContent = 'Analyseer Pagina';
+            analyzeBtn.textContent = this.t('chrome_extension.analyze_page');
         }
     }
 

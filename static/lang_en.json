@@ -46,5 +46,22 @@
     "🏃 Exercise at least 30 minutes per day",
     "😴 Get 7-9 hours of sleep per night",
     "🧘 Take time for relaxation and mindfulness"
-  ]
+  ],
+  "version": "Silverfood v4.0.0 - Multi-language Recipe Analysis",
+  "footer_copyright": "Silverfood Universe. Healthy eating for everyone.",
+  "chrome_extension": {
+    "analyzing": "Analyzing...",
+    "analyze_page": "Analyze Page",
+    "open_full_app": "Open Full App",
+    "checking": "Checking...",
+    "recipe_detected": "Recipe page detected",
+    "no_recipe_detected": "No recipe page detected",
+    "powered_by": "Powered by Silverfood",
+    "health_score": "Health score",
+    "ingredients_found": "ingredients found",
+    "page_not_supported": "This page is not supported",
+    "api_call_failed": "API call failed",
+    "analysis_failed": "Analysis failed",
+    "check_recipe_page": "Check if this is a recipe page"
+  }
 }

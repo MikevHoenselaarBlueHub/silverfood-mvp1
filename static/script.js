@@ -70,6 +70,22 @@ function updateUILanguage() {
             element.textContent = text;
         }
     });
+
+    // Update footer with current year and translations
+    const currentYear = new Date().getFullYear();
+    const yearElement = document.getElementById('current-year');
+    const copyrightElement = document.getElementById('footer-copyright');
+    const versionElement = document.getElementById('version-text');
+
+    if (yearElement) {
+        yearElement.textContent = currentYear;
+    }
+    if (copyrightElement) {
+        copyrightElement.innerHTML = `&copy; ${currentYear} ${t('footer_copyright')}`;
+    }
+    if (versionElement) {
+        versionElement.textContent = t('version');
+    }
 }
 
 // Portions calculator

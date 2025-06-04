@@ -265,16 +265,16 @@
         <div class="status-card">
             <div class="status-indicator">
                 <span class="status-icon" id="statusIcon">⏳</span>
-                <span id="status">Controleren...</span>
+                <span id="status" data-i18n="chrome_extension.checking">Controleren...</span>
             </div>
             <div class="url-display" id="currentUrl">Laden...</div>
         </div>
 
-        <button class="action-button" id="analyzeBtn" disabled>
+        <button class="action-button" id="analyzeBtn" disabled data-i18n="chrome_extension.analyze_page">
             🔍 Analyseer Recept
         </button>
 
-        <button class="action-button secondary-button" id="openWebApp">
+        <button class="action-button secondary-button" id="openWebApp" data-i18n="chrome_extension.open_full_app">
             🌐 Open Volledige App
         </button>
 
@@ -282,7 +282,7 @@
     </div>
 
     <div class="footer">
-        <a href="#" id="openWebApp2">Powered by Silverfood</a>
+        <a href="#" id="openWebApp2" data-i18n="chrome_extension.powered_by">Powered by Silverfood</a>
     </div>
 
     <script src="popup.js"></script>
