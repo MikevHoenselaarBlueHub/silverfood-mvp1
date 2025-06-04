@@ -56,10 +56,23 @@ function updateUILanguage() {
 }
 
 // Portions calculator
-let currentPortions = 4;
+let currentPortions = parseInt(localStorage.getItem('savedPortions')) || 4;
 let originalNutrition = {};
 
+function savePortions() {
+    localStorage.setItem('savedPortions', currentPortions.toString());
+}
+
+function loadSavedPortions() {
+    const saved = localStorage.getItem('savedPortions');
+    if (saved) {
+        currentPortions = parseInt(saved);
+        console.log('Loaded saved portions:', currentPortions);
+    }
+}
+
 function createPortionsControl() {
+    const savedPortions = localStorage.getItem('savedPortions') || '4';
     return `
         <div class="portions-control">
             <label class="portions-label" for="portions-slider">${t('portions')}:</label>
@@ -68,11 +81,11 @@ function createPortionsControl() {
                    class="portions-slider"
                    min="1" 
                    max="12" 
-                   value="4"
+                   value="${savedPortions}"
                    aria-label="${t('portions')}"
                    title="Stel het aantal personen in"
                    oninput="updatePortions(this.value)">
-            <span class="portions-display" id="portions-display">4</span>
+            <span class="portions-display" id="portions-display">${savedPortions}</span>
         </div>
     `;
 }
@@ -80,6 +93,10 @@ function createPortionsControl() {
 function updatePortions(newPortions) {
     currentPortions = parseInt(newPortions);
     document.getElementById('portions-display').textContent = currentPortions;
+    
+    // Save to localStorage
+    savePortions();
+    console.log('Portions updated and saved:', currentPortions);
 
     if (Object.keys(originalNutrition).length > 0) {
         updateNutritionDisplay();
@@ -90,7 +107,9 @@ function updateNutritionDisplay() {
     const nutritionGrid = document.getElementById('nutritionGrid');
     if (!nutritionGrid || !originalNutrition) return;
 
+    // Make sure we use the current portions setting
     const portionMultiplier = currentPortions / 4; // Assuming original is for 4 people
+    console.log('Updating nutrition display with multiplier:', portionMultiplier, 'for portions:', currentPortions);
 
     let nutritionHtml = '';
     const nutritionKeys = {
@@ -793,6 +812,16 @@ function displayResults(data) {
     const nutritionTitle = document.querySelector('.nutrition-summary h3');
     if (nutritionTitle) {
         nutritionTitle.innerHTML = `${t('nutrition_per_portion')} ${createPortionsControl()}`;
+        
+        // Make sure the slider reflects the current saved value
+        setTimeout(() => {
+            const slider = document.getElementById('portions-slider');
+            const display = document.getElementById('portions-display');
+            if (slider && display) {
+                slider.value = currentPortions;
+                display.textContent = currentPortions;
+            }
+        }, 100);
     }
 
     updateNutritionDisplay();
@@ -1113,8 +1142,11 @@ window.addEventListener("load", async () => {
         await loadHealthTips();
         await loadIcons();
         
-        // Load saved sort order
+        // Load saved preferences
         ingredientSortOrder = localStorage.getItem('ingredientSortOrder') || 'alphabet';
+        loadSavedPortions();
+        
+        console.log('Initialized with saved portions:', currentPortions);
     } catch (error) {
         console.error("Error loading configuration:", error);
     }
