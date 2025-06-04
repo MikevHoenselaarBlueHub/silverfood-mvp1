@@ -1048,6 +1048,36 @@ button:focus, input:focus {
     transition: all 0.2s ease;
 }
 
+.drop-zone {
+    height: 8px;
+    margin: 4px 0;
+    border-radius: 4px;
+    background: transparent;
+    border: 2px dashed transparent;
+    transition: all 0.3s ease;
+    display: none;
+}
+
+.drop-zone-active {
+    background: rgba(245, 128, 41, 0.2);
+    border-color: var(--primary-color);
+    height: 12px;
+    margin: 8px 0;
+}
+
+.goal-item.dragging {
+    opacity: 0.6;
+    transform: rotate(2deg) scale(0.98);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+    z-index: 1000;
+    position: relative;
+}
+
+.goal-item[style*="cursor: not-allowed"] {
+    background: rgba(220, 53, 69, 0.1) !important;
+    border-color: var(--danger-color) !important;
+}
+
 /* AI explanation styles */
 .ai-explanation-btn {
     transition: all 0.3s ease;

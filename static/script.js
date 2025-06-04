@@ -174,13 +174,24 @@ function updateGoalsDisplay() {
     const allGoals = document.querySelectorAll('.goal-item');
     
     allGoals.forEach(goal => {
+        const goalDataAttribute = goal.getAttribute('data-goal');
         const titleElement = goal.querySelector('.goal-title');
-        const goalName = titleElement ? titleElement.textContent.trim() : '';
+        const goalName = goalDataAttribute || (titleElement ? titleElement.textContent.trim() : '');
 
         if (hiddenGoals.includes(goalName)) {
             goal.style.display = 'none';
         } else {
             goal.style.display = 'block';
+        }
+
+        // Update button icon
+        const hideButton = goal.querySelector('.hide-goal-btn');
+        if (hideButton) {
+            const isHidden = hiddenGoals.includes(goalName);
+            hideButton.innerHTML = isHidden ? 
+                (showIconSVG || '👁️') : 
+                (hideIconSVG || '🚫👁️');
+            hideButton.title = isHidden ? t('show_goal') : t('hide_goal');
         }
     });
 
@@ -247,17 +258,111 @@ function toggleHiddenGoalsSection() {
     }
 }
 
-// Enhanced drag and drop with visual feedback
+// Enhanced drag and drop with proper drop zones
 function setupDragAndDrop() {
-    const goalItems = document.querySelectorAll('.goal-item:not(.hidden)');
+    const goalItems = document.querySelectorAll('.goal-item:not([style*="display: none"])');
     let draggedElement = null;
-    let placeholder = null;
+    let dropZones = [];
 
-    function createPlaceholder() {
-        const div = document.createElement('div');
-        div.className = 'drag-placeholder';
-        return div;
+    function createDropZones() {
+        // Remove existing drop zones
+        document.querySelectorAll('.drop-zone').forEach(zone => zone.remove());
+        dropZones = [];
+
+        const container = document.querySelector('.goals-container');
+        if (!container) return;
+
+        goalItems.forEach((item, index) => {
+            // Create drop zone before each item
+            const dropZone = document.createElement('div');
+            dropZone.className = 'drop-zone';
+            dropZone.dataset.position = index;
+            container.insertBefore(dropZone, item);
+            dropZones.push(dropZone);
+
+            // Add drop zone after last item
+            if (index === goalItems.length - 1) {
+                const lastDropZone = document.createElement('div');
+                lastDropZone.className = 'drop-zone';
+                lastDropZone.dataset.position = index + 1;
+                container.insertBefore(lastDropZone, item.nextSibling);
+                dropZones.push(lastDropZone);
+            }
+        });
     }
+
+    function setupDropZoneEvents() {
+        dropZones.forEach(zone => {
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                if (draggedElement) {
+                    // Clear all active zones
+                    document.querySelectorAll('.drop-zone-active').forEach(z => {
+                        z.classList.remove('drop-zone-active');
+                    });
+                    // Set forbidden cursor on goal items
+                    document.querySelectorAll('.goal-item').forEach(item => {
+                        if (item !== draggedElement) {
+                            item.style.cursor = 'not-allowed';
+                        }
+                    });
+                    
+                    zone.classList.add('drop-zone-active');
+                }
+            });
+
+            zone.addEventListener('dragleave', (e) => {
+                // Only remove if we're actually leaving the zone
+                if (!zone.contains(e.relatedTarget)) {
+                    zone.classList.remove('drop-zone-active');
+                }
+            });
+
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (draggedElement) {
+                    const position = parseInt(zone.dataset.position);
+                    const container = zone.parentNode;
+                    
+                    // Get all current goal items (excluding the dragged one)
+                    const currentItems = Array.from(container.querySelectorAll('.goal-item')).filter(item => item !== draggedElement);
+                    
+                    // Insert at the correct position
+                    if (position === 0) {
+                        container.insertBefore(draggedElement, container.firstChild);
+                    } else if (position >= currentItems.length) {
+                        container.appendChild(draggedElement);
+                    } else {
+                        container.insertBefore(draggedElement, currentItems[position]);
+                    }
+                    
+                    // Clean up
+                    cleanupDragState();
+                    // Recreate drop zones with new positions
+                    createDropZones();
+                    setupDropZoneEvents();
+                }
+            });
+        });
+    }
+
+    function cleanupDragState() {
+        document.querySelectorAll('.drop-zone-active').forEach(z => {
+            z.classList.remove('drop-zone-active');
+        });
+        document.querySelectorAll('.goal-item').forEach(item => {
+            item.style.cursor = '';
+            item.classList.remove('dragging');
+        });
+        document.querySelectorAll('.drop-zone').forEach(zone => zone.remove());
+        draggedElement = null;
+    }
+
+    // Initialize drop zones
+    createDropZones();
+    setupDropZoneEvents();
 
     goalItems.forEach(item => {
         const dragHandle = item.querySelector('.drag-handle');
@@ -267,55 +372,32 @@ function setupDragAndDrop() {
                 draggedElement = item;
                 item.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
-
-                placeholder = createPlaceholder();
+                
+                // Show drop zones
+                document.querySelectorAll('.drop-zone').forEach(zone => {
+                    zone.style.display = 'block';
+                });
             });
 
-        dragHandle.addEventListener('dragend', () => {
-                item.classList.remove('dragging');
-                if (placeholder && placeholder.parentNode) {
-                    placeholder.remove();
-                }
-                document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
-                    el.classList.remove('drag-over', 'drag-over-bottom');
+            dragHandle.addEventListener('dragend', () => {
+                cleanupDragState();
+                // Hide drop zones
+                document.querySelectorAll('.drop-zone').forEach(zone => {
+                    zone.style.display = 'none';
                 });
-                draggedElement = null;
             });
         }
 
+        // Prevent dropping on goal items themselves
         item.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-
             if (draggedElement && draggedElement !== item) {
-                const rect = item.getBoundingClientRect();
-                const midpoint = rect.top + rect.height / 2;
-
-                // Clear previous indicators
-                document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
-                    el.classList.remove('drag-over', 'drag-over-bottom');
-                });
-
-                if (e.clientY < midpoint) {
-                    item.classList.add('drag-over');
-                    if (placeholder.parentNode !== item.parentNode || placeholder.nextSibling !== item) {
-                        item.parentNode.insertBefore(placeholder, item);
-                    }
-                } else {
-                    item.classList.add('drag-over-bottom');
-                    if (placeholder.parentNode !== item.parentNode || placeholder.previousSibling !== item) {
-                        item.parentNode.insertBefore(placeholder, item.nextSibling);
-                    }
-                }
+                e.dataTransfer.dropEffect = 'none';
+                item.style.cursor = 'not-allowed';
             }
         });
 
-        item.addEventListener('drop', (e) => {
-            e.preventDefault();
-            if (draggedElement && placeholder && placeholder.parentNode) {
-                placeholder.parentNode.insertBefore(draggedElement, placeholder);
-                placeholder.remove();
-            }
+        item.addEventListener('dragleave', () => {
+            item.style.cursor = '';
         });
     });
 }

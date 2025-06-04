@@ -23,7 +23,11 @@
       "Botgezondheid": "Botgezondheid",
       "Energieniveau": "Energieniveau",
       "Huidgezondheid": "Huidgezondheid",
-      "Hersengezondheid": "Hersengezondheid"
+      "Hersengezondheid": "Hersengezondheid",
+      "weight_loss": "Afvallen",
+      "muscle_gain": "Spieropbouw",
+      "heart_health": "Hartgezondheid",
+      "energy_boost": "Meer energie"
     },
     "how_we_calculate": "Hoe komen we tot deze score?",
     "all_ingredients": "Alle Ingrediënten",
@@ -61,7 +65,11 @@
       "Botgezondheid": "Bone health",
       "Energieniveau": "Energy level",
       "Huidgezondheid": "Skin health",
-      "Hersengezondheid": "Brain health"
+      "Hersengezondheid": "Brain health",
+      "weight_loss": "Weight loss",
+      "muscle_gain": "Muscle gain",
+      "heart_health": "Heart health",
+      "energy_boost": "Energy boost"
     },
     "how_we_calculate": "How do we calculate this score?",
     "all_ingredients": "All Ingredients",
