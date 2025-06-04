@@ -124,40 +124,40 @@ async function analyzeRecipe() {
             inputData = recipeUrlInput.value.trim();
             analysisType = 'url';
 
-        if (!inputData) {
-            showError("Voer eerst een recept URL in", "Geen URL ingevuld");
-            recipeUrlInput.focus();
-            return;
-        }
+            if (!inputData) {
+                showError("Voer eerst een recept URL in", "Geen URL ingevuld");
+                recipeUrlInput.focus();
+                return;
+            }
 
         // Basis URL validatie
-        if (!inputData.startsWith("http://") && !inputData.startsWith("https://")) {
-            showError(
-                "De URL moet beginnen met http:// of https://",
-                "Ongeldige URL",
-            );
-            recipeUrlInput.focus();
-            return;
-        }
-    } else {
+            if (!inputData.startsWith("http://") && !inputData.startsWith("https://")) {
+                showError(
+                    "De URL moet beginnen met http:// of https://",
+                    "Ongeldige URL",
+                );
+                recipeUrlInput.focus();
+                return;
+            }
+        } else {
         inputData = window.recipeTextArea.value.trim();
-        analysisType = 'text';
+            analysisType = 'text';
 
-        if (!inputData) {
-            showError("Voer eerst recept tekst in", "Geen tekst ingevuld");
-            window.recipeTextArea.focus();
-            return;
-        }
+            if (!inputData) {
+                showError("Voer eerst recept tekst in", "Geen tekst ingevuld");
+                window.recipeTextArea.focus();
+                return;
+            }
 
-        if (inputData.length < 20) {
-            showError(
-                "De recept tekst is te kort. Voer meer ingrediënten of recept informatie in.",
-                "Tekst te kort"
-            );
-            window.recipeTextArea.focus();
-            return;
+            if (inputData.length < 20) {
+                showError(
+                    "De recept tekst is te kort. Voer meer ingrediënten of recept informatie in.",
+                    "Tekst te kort"
+                );
+                window.recipeTextArea.focus();
+                return;
+            }
         }
-    }
 
     // UI updates voor loading state - meer duidelijk voor senioren
     analyzeBtn.disabled = true;
