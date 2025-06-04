@@ -1,23 +1,50 @@
 // Popup script for Silverfood Chrome Extension
 class SilverfoodPopup {
     constructor() {
-        // Detect development vs production
-        this.isDevelopment = chrome.runtime.getManifest().version.includes('dev') || 
-                           chrome.runtime.getManifest().name.includes('Dev');
-
-        if (this.isDevelopment) {
-            // Development: Use Replit webview URL
-            this.apiUrl = 'https://[YOUR-REPL-ID].id.replit.dev';
-        } else {
-            // Production: Use deployed URL
-            this.apiUrl = 'https://[YOUR-REPL-NAME].[YOUR-USERNAME].repl.co';
-        }
+        // Get API URL from config endpoint
+        this.getApiUrlFromConfig();
 
         this.init();
     }
 
+    async getApiUrlFromConfig() {
+        try {
+            // Try to get config from the extension's local environment first
+            const defaultUrls = [
+                'https://silverfood-analyzer.your-username.repl.co',
+                'http://localhost:5000'  // Fallback for development
+            ];
+            
+            // Test each URL to find the working one
+            for (const url of defaultUrls) {
+                try {
+                    const response = await fetch(`${url}/health`, { 
+                        method: 'GET',
+                        timeout: 3000 
+                    });
+                    if (response.ok) {
+                        this.apiUrl = url;
+                        console.log(`✅ API URL configured: ${url}`);
+                        return;
+                    }
+                } catch (e) {
+                    console.log(`❌ URL not reachable: ${url}`);
+                }
+            }
+            
+            // If no URL works, use the first as default
+            this.apiUrl = defaultUrls[0];
+            console.log(`⚠️ Using default API URL: ${this.apiUrl}`);
+            
+        } catch (error) {
+            console.error('Error getting API URL:', error);
+            this.apiUrl = 'http://localhost:5000';
+        }
+    }
+
     init() {
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            await this.getApiUrlFromConfig();
             this.setupEventListeners();
             this.checkCurrentPage();
         });

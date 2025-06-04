@@ -12,6 +12,7 @@ from analyse import analyse
 from urllib.parse import urlparse
 from chrome_extension_api import setup_chrome_extension_api
 from debug_helper import debug
+from url_config import get_api_url, get_deployment_url, is_development, url_config
 
 # Laad configuratie
 try:
@@ -301,19 +302,27 @@ async def analyse_text_endpoint(request: Request):
 
 @app.get("/health")
 async def health_check():
-    """Simple health check endpoint."""
-    api_key = os.getenv("OPENAI_API_KEY")
-    openai_available = bool(api_key)
-    
-    if not openai_available:
-        logger.info("Health check: OpenAI API key not configured")
-    
+    """Health check endpoint"""
     return {
-        "status": "healthy", 
-        "timestamp": time.time(),
-        "openai_available": openai_available
+        "status": "healthy",
+        "version": "3.4.0",
+        "debug_mode": debug.debug_enabled,
+        "api_url": get_api_url(),
+        "deployment_url": get_deployment_url(),
+        "environment": "development" if is_development() else "production"
     }
 
+@app.get("/config")
+async def get_config():
+    """Get API configuration for extensions and clients"""
+    return {
+        "api_url": get_api_url(),
+        "deployment_url": get_deployment_url(),
+        "is_development": is_development(),
+        "version": "3.4.0",
+        "extension_compatible": True,
+        "cors_enabled": True
+    }
 
 
 @app.get("/supported-sites")
@@ -358,9 +367,9 @@ async def debug_scraping(url: str):
     try:
         from debug_helper import debug_ah_scraping
         from analyse import scrape_ah_advanced, smart_ingredient_scraping
-        
+
         results = {}
-        
+
         # Test debug analysis
         try:
             debug_results = debug_ah_scraping(url)
@@ -371,7 +380,7 @@ async def debug_scraping(url: str):
             }
         except Exception as e:
             results['debug_analysis'] = {'success': False, 'error': str(e)}
-        
+
         # Test advanced scraping
         try:
             ingredients, title = scrape_ah_advanced(url)
@@ -383,7 +392,7 @@ async def debug_scraping(url: str):
             }
         except Exception as e:
             results['advanced_scraping'] = {'success': False, 'error': str(e)}
-        
+
         # Test smart scraping
         try:
             ingredients, title = smart_ingredient_scraping(url)
@@ -395,13 +404,13 @@ async def debug_scraping(url: str):
             }
         except Exception as e:
             results['smart_scraping'] = {'success': False, 'error': str(e)}
-        
+
         return {
             'url': url,
             'debug_results': results,
             'timestamp': time.time()
         }
-        
+
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -449,20 +458,20 @@ async def get_ingredient_substitutions(name: str):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return {"substitutions": [], "api_key_missing": True}
-        
+
         prompt = f"""
         Geef 2-3 gezondere alternatieven voor {name} in Nederlandse keukeningrediënten.
-        
+
         Antwoord alleen met de ingrediënten gescheiden door komma's, bijvoorbeeld: "volkoren pasta, quinoa, courgetti"
-        
+
         Geen uitleg, alleen de ingrediënten.
         """
-        
+
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        
+
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -472,14 +481,14 @@ async def get_ingredient_substitutions(name: str):
             "max_tokens": 50,
             "temperature": 0.8
         }
-        
+
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
             timeout=8
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             substitutions_text = result['choices'][0]['message']['content'].strip()
@@ -488,7 +497,7 @@ async def get_ingredient_substitutions(name: str):
         else:
             logger.error(f"OpenAI API error for substitutions {name}: {response.status_code}")
             return {"substitutions": []}
-            
+
     except Exception as e:
         logger.error(f"Substitutions error for {name}: {e}")
         return {"substitutions": []}
@@ -500,33 +509,33 @@ async def get_ingredient_description(name: str, healthy: bool = True):
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
             return {"description": None, "api_key_missing": True}
-        
+
         # Get nutrition data from Open Food Facts first
         nutrition_data = await get_nutrition_from_openfoodfacts(name)
-        
+
         # Create AI prompt based on health score and nutrition data
         nutrition_info = ""
         if nutrition_data:
             nutrition_info = f"\nVoedingswaarden per 100g: {nutrition_data}"
-        
+
         if healthy:
             prompt = f"""
             Leg in 20-30 woorden uit waarom {name} gezond is. Focus op de belangrijkste voedingsstoffen en gezondheidsvoordelen.{nutrition_info}
-            
+
             Geef een korte, positieve uitleg in het Nederlands.
             """
         else:
             prompt = f"""
             Leg in 20-30 woorden uit waarom {name} minder gezond kan zijn en wat je in plaats daarvan zou kunnen gebruiken.{nutrition_info}
-            
+
             Geef een korte, begrijpelijke uitleg in het Nederlands met een praktische tip.
             """
-        
+
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json"
         }
-        
+
         data = {
             "model": "gpt-3.5-turbo",
             "messages": [
@@ -536,14 +545,14 @@ async def get_ingredient_description(name: str, healthy: bool = True):
             "max_tokens": 80,
             "temperature": 0.7
         }
-        
+
         response = requests.post(
             "https://api.openai.com/v1/chat/completions",
             headers=headers,
             json=data,
             timeout=10
         )
-        
+
         if response.status_code == 200:
             result = response.json()
             description = result['choices'][0]['message']['content'].strip()
@@ -551,7 +560,7 @@ async def get_ingredient_description(name: str, healthy: bool = True):
         else:
             logger.error(f"OpenAI API error for ingredient {name}: {response.status_code}")
             return {"description": None}
-            
+
     except Exception as e:
         logger.error(f"Ingredient description error for {name}: {e}")
         return {"description": None}
@@ -562,15 +571,15 @@ async def get_nutrition_from_openfoodfacts(ingredient_name: str):
         # Clean ingredient name for search
         clean_name = ingredient_name.lower().strip()
         search_url = f"https://world.openfoodfacts.org/cgi/search.pl?search_terms={clean_name}&search_simple=1&action=process&json=1"
-        
+
         response = requests.get(search_url, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            
+
             if data.get('products') and len(data['products']) > 0:
                 product = data['products'][0]
                 nutriments = product.get('nutriments', {})
-                
+
                 nutrition_info = {}
                 if 'energy-kcal_100g' in nutriments:
                     nutrition_info['energie'] = f"{nutriments['energy-kcal_100g']} kcal"
@@ -582,10 +591,10 @@ async def get_nutrition_from_openfoodfacts(ingredient_name: str):
                     nutrition_info['vezels'] = f"{nutriments['fiber_100g']}g"
                 if 'fat_100g' in nutriments:
                     nutrition_info['vetten'] = f"{nutriments['fat_100g']}g"
-                
+
                 if nutrition_info:
                     return nutrition_info
-        
+
         return None
     except Exception as e:
         logger.error(f"Open Food Facts API error for {ingredient_name}: {e}")

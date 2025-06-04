@@ -3,9 +3,45 @@
 class SilverfoodBackground {
     constructor() {
         this.debugMode = true; // Enable debug by default for development
-        this.apiUrl = 'http://localhost:5000'; // Will be updated for production
+        this.apiUrl = null; // Will be configured dynamically
         this.activeRequests = new Map(); // Track active requests for cleanup
+        this.configureApiUrl();
         this.init();
+    }
+
+    async configureApiUrl() {
+        try {
+            // Default URLs to try
+            const possibleUrls = [
+                'https://silverfood-analyzer.your-username.repl.co',
+                'http://localhost:5000'
+            ];
+            
+            // Test each URL
+            for (const url of possibleUrls) {
+                try {
+                    const response = await fetch(`${url}/health`, { 
+                        method: 'GET',
+                        headers: { 'Accept': 'application/json' }
+                    });
+                    if (response.ok) {
+                        this.apiUrl = url;
+                        this.log(`✅ API URL configured: ${url}`);
+                        return;
+                    }
+                } catch (e) {
+                    this.log(`❌ URL not reachable: ${url}`);
+                }
+            }
+            
+            // Fallback
+            this.apiUrl = possibleUrls[0];
+            this.log(`⚠️ Using default API URL: ${this.apiUrl}`);
+            
+        } catch (error) {
+            this.logError('Error configuring API URL:', error);
+            this.apiUrl = 'http://localhost:5000';
+        }
     }
 
     init() {

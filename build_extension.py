@@ -7,9 +7,13 @@ Build Chrome extension ZIP for easy installation
 import zipfile
 import os
 import json
+from url_config import get_deployment_url
 
 def build_extension():
     """Build Chrome extension ZIP file"""
+    
+    print("🔧 Building Silverfood Chrome Extension...")
+    print(f"📡 Using deployment URL: {get_deployment_url()}")
     
     # Extension files to include
     extension_files = [

@@ -1,4 +1,10 @@
 {
+  "deployment": {
+    "replit_app_name": "silverfood-analyzer",
+    "replit_username": "your-username",
+    "use_deployment_url": true,
+    "manual_override_url": null
+  },
   "health_tips": {
     "interval_seconds": 4,
     "show_tips": true,

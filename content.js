@@ -1,8 +1,8 @@
 // Content script for Silverfood Chrome Extension
 console.log('Silverfood content script loaded');
 
-// Configuration for Replit deployment
-const API_URL = 'https://[YOUR-REPL-NAME].[YOUR-USERNAME].repl.co';
+// API URL will be provided via messages from background script
+let API_URL = null;
 
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
