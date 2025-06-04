@@ -64,64 +64,62 @@ class SilverfoodPopup {
 
             const [tab] = await chrome.tabs.query({active: true, currentWindow: true});
 
-            const response = await fetch(`${this.apiUrl}/chrome/analyze?url=${encodeURIComponent(tab.url)}`);
+            if (!tab.url || (!tab.url.startsWith('http://') && !tab.url.startsWith('https://'))) {
+                throw new Error('Deze pagina wordt niet ondersteund');
+            }
+
+            // Call our API
+            const response = await fetch(`http://localhost:5000/chrome/analyze?url=${encodeURIComponent(tab.url)}`);
+
+            if (!response.ok) {
+                throw new Error('API call failed');
+            }
+
             const result = await response.json();
 
             if (result.success) {
                 this.displayResults(result.data);
             } else {
-                resultsDiv.innerHTML = `<div class="error">Fout: ${result.error}</div>`;
+                throw new Error(result.error || 'Analysis failed');
             }
+
         } catch (error) {
-            resultsDiv.innerHTML = `<div class="error">Netwerkfout: ${error.message}</div>`;
+            console.error('Analysis error:', error);
+            resultsDiv.innerHTML = `
+                <div class="error">
+                    <p>❌ ${error.message}</p>
+                    <p><small>Controleer of dit een receptpagina is</small></p>
+                </div>
+            `;
         } finally {
             analyzeBtn.disabled = false;
-            analyzeBtn.textContent = 'Analyseer Recept';
+            analyzeBtn.textContent = 'Analyseer Pagina';
         }
     }
 
     displayResults(data) {
         const resultsDiv = document.getElementById('results');
 
-        const healthScoreColor = data.health_score >= 7 ? '#4CAF50' : 
-                                data.health_score >= 5 ? '#FF9800' : '#F44336';
-
         resultsDiv.innerHTML = `
-            <div class="result-card">
+            <div class="results">
                 <h3>${data.recipe_title}</h3>
-                <div class="health-score" style="color: ${healthScoreColor}">
-                    Gezondheidsscore: ${data.health_score}/10
+                <div class="score">
+                    Gezondheidscore: ${data.health_score}/10
                 </div>
-                <div class="ingredient-count">
+                <div class="ingredients">
                     ${data.total_ingredients} ingrediënten gevonden
                 </div>
-
-                <h4>Top Ingrediënten:</h4>
-                <ul class="ingredient-list">
-                    ${data.top_ingredients.map(ing => `
-                        <li>
-                            <span class="ingredient-name">${ing.name}</span>
-                            <span class="ingredient-score" style="color: ${ing.health_score >= 7 ? '#4CAF50' : ing.health_score >= 5 ? '#FF9800' : '#F44336'}">
-                                ${ing.health_score}/10
-                            </span>
-                        </li>
-                    `).join('')}
-                </ul>
-
-                <button id="viewFullReport" class="btn-primary">
-                    Bekijk volledige analyse
-                </button>
+                <div class="top-ingredients">
+                    ${data.top_ingredients.map(ing => 
+                        `<div class="ingredient">${ing.name} (${ing.health_score}/10)</div>`
+                    ).join('')}
+                </div>
             </div>
         `;
-
-        document.getElementById('viewFullReport').addEventListener('click', () => {
-            const [tab] = chrome.tabs.query({active: true, currentWindow: true}, (tabs) => {
-                const url = `${this.apiUrl}?url=${encodeURIComponent(tabs[0].url)}`;
-                chrome.tabs.create({url});
-            });
-        });
     }
 }
 
-// Initialize popup
-new SilverfoodPopup();
+// Initialize when popup loads
+document.addEventListener('DOMContentLoaded', () => {
+    new SilverfoodPopup();
+});

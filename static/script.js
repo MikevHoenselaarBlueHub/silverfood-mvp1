@@ -257,7 +257,7 @@ async function analyzeRecipe() {
             errorMessage.includes("Geen ingrediënten")
         ) {
             userMessage =
-                "Geen ingrediënten gevonden. Dit kan komen door:\n• Website blokkeert automatische toegang\n• Pagina laadt te langzaam\n• URL is geen receptpagina\n\nProbeer een andere recept-URL.";
+                "Geen ingrediënten gevonden. Dit kan komen door:\\n• Website blokkeert automatische toegang\\n• Pagina laadt te langzaam\\n• URL is geen receptpagina\\n\\nProbeer een andere recept-URL.";
             errorTitle = "Geen ingrediënten gevonden";
         } else if (errorMessage.includes("tijdelijk niet beschikbaar")) {
             userMessage =
@@ -295,6 +295,47 @@ async function analyzeRecipe() {
         btnText.textContent = "Analyseer Recept";
         loader.style.display = "none";
         hideLoadingMessage();
+    }
+}
+
+async function analyzeText() {
+    const analyzeBtn = document.getElementById('analyzeTextBtn');
+    const textInput = document.getElementById('recipeText');
+    const resultsDiv = document.getElementById('results');
+
+    const text = textInput.value.trim();
+    if (!text) {
+        showError('Voer eerst de recept tekst in.');
+        return;
+    }
+
+    try {
+        analyzeBtn.disabled = true;
+        analyzeBtn.textContent = 'Analyseren...';
+        resultsDiv.innerHTML = '<div class="loading">Recept wordt geanalyseerd...</div>';
+
+        const response = await fetch('/analyse-text', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ text: text })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Analyse mislukt');
+        }
+
+        const result = await response.json();
+        displayResults(result);
+
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Er is een fout opgetreden bij het analyseren van de tekst.');
+    } finally {
+        analyzeBtn.disabled = false;
+        analyzeBtn.textContent = 'Analyseer Tekst';
     }
 }
 
@@ -395,46 +436,83 @@ function showSuccessMessage() {
 }
 
 function displayResults(data) {
-    hideLoadingMessage();
+    const resultsDiv = document.getElementById('results');
 
-    // Update recipe titel
-    document.getElementById("recipeTitle").textContent =
-        data.recipe_title || "Recept Analyse";
-
-    // Display nutrition summary
-    displayNutritionSummary(data.total_nutrition || {});
-
-    // Display health goals progress bars
-    displayHealthGoals(data.health_goals_scores || {});
-
-    // Display health explanation - veilige fallback
-    const healthExplanation = data.health_explanation || [];
-    displayHealthExplanation(Array.isArray(healthExplanation) ? healthExplanation : []);
-
-    // Display all ingredients
-    displayAllIngredients(data.all_ingredients || []);
-
-    // Display swaps if available
-    if (data.swaps && data.swaps.length > 0) {
-        displaySwaps(data.swaps);
-        document.getElementById("swapsSection").style.display = "block";
-    } else {
-        document.getElementById("swapsSection").style.display = "none";
+    if (!data.success) {
+        showError(data.message || 'Analyse mislukt');
+        return;
     }
 
-    // Show results met smooth scroll
-    resultsDiv.style.display = "block";
-    resultsDiv.scrollIntoView({ behavior: "smooth", block: "start" });
+    let html = `
+        <div class="results-container">
+            <h2>🍽️ ${data.recipe_title}</h2>
+            <div class="health-score">
+                <h3>Gezondheidscore: ${data.health_score || 'N/A'}/10</h3>
+            </div>
 
-    // Toon succesmelding voor screen readers
-    const avgScore =
-        Object.values(data.health_goals_scores || {}).reduce(
-            (a, b) => a + b,
-            0,
-        ) / Object.keys(data.health_goals_scores || {}).length || 0;
-    announceToScreenReader(
-        `Recept analyse compleet. Gemiddelde gezondheidsscore: ${avgScore.toFixed(1)} van de 10.`,
-    );
+            <h3>📋 Ingrediënten (${data.ingredient_count})</h3>
+            <div class="ingredients-grid">
+    `;
+
+    if (data.all_ingredients && data.all_ingredients.length > 0) {
+        data.all_ingredients.forEach(ingredient => {
+            const healthScore = ingredient.health_score || 5;
+            const healthColor = healthScore >= 7 ? '#4CAF50' : healthScore >= 5 ? '#FF9800' : '#F44336';
+            const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
+
+            html += `
+                <div class="ingredient-card" style="border-left: 4px solid ${healthColor}">
+                    <div class="ingredient-header">
+                        <span class="ingredient-name">${ingredient.name}</span>
+                        <span class="health-badge">${healthIcon} ${healthScore}/10</span>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    html += `
+            </div>
+
+            <h3>💡 Gezondheidsuitleg</h3>
+            <div class="health-explanation">
+    `;
+
+    if (data.health_explanation && data.health_explanation.length > 0) {
+        data.health_explanation.forEach(explanation => {
+            html += `<p>${explanation}</p>`;
+        });
+    } else {
+        html += '<p>Geen uitleg beschikbaar.</p>';
+    }
+
+    html += `
+            </div>
+
+            <h3>🔄 Gezondere alternatieven</h3>
+            <div class="swaps-container">
+    `;
+
+    if (data.swaps && data.swaps.length > 0) {
+        data.swaps.forEach(swap => {
+            html += `
+                <div class="swap-card">
+                    <strong>Vervang:</strong> ${swap.original}<br>
+                    <strong>Door:</strong> ${swap.suggestion}<br>
+                    <small><em>${swap.reason}</em></small>
+                </div>
+            `;
+        });
+    } else {
+        html += '<p>Dit recept bevat al grotendeels gezonde ingrediënten! 🎉</p>';
+    }
+
+    html += `
+            </div>
+        </div>
+    `;
+
+    resultsDiv.innerHTML = html;
 }
 
 function displayNutritionSummary(nutrition) {
@@ -1140,6 +1218,35 @@ function hideResults() {
     resultsDiv.style.display = "none";
 }
 
+function showError(message) {
+    const resultsDiv = document.getElementById('results');
+    resultsDiv.innerHTML = `
+        <div class="error-message">
+            <h3>❌ Fout</h3>
+            <p>${message}</p>
+            <p><small>Probeer een andere recept-URL of controleer of de URL correct is.</small></p>
+        </div>
+    `;
+}
+
+function showTab(tabName) {
+    // Hide all tabs
+    document.getElementById('url-tab').style.display = 'none';
+    document.getElementById('text-tab').style.display = 'none';
+
+    // Show selected tab
+    document.getElementById(tabName).style.display = 'block';
+
+    // Update tab buttons
+    document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+
+    // Clear results when switching tabs
+    document.getElementById('results').innerHTML = '';
+}
+
 // Toegankelijkheidsfunctie voor screen readers
 function announceToScreenReader(message) {
     const announcement = document.createElement("div");
@@ -1178,6 +1285,26 @@ document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
         hideError();
     }
+});
+
+// Initialize the page
+document.addEventListener('DOMContentLoaded', function() {
+    // Show URL tab by default
+    showTab('url-tab');
+
+    // Add enter key support for URL input
+    document.getElementById('recipeUrl').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            analyzeRecipe();
+        }
+    });
+
+    // Add enter key support for text input (Ctrl+Enter)
+    document.getElementById('recipeText').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && e.ctrlKey) {
+            analyzeText();
+        }
+    });
 });
 
 // Laad configuratie en gezondheidstips

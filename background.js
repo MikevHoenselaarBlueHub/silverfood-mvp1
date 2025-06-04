@@ -15,7 +15,33 @@ class BackgroundService {
         // Handle tab updates to show badge
         chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
             if (changeInfo.status === 'complete' && tab.url) {
-                this.updateBadge(tab);
+                try {
+                    // Check if it's a recipe page
+                    const isRecipePage = tab.url.includes('recept') || 
+                                       tab.url.includes('recipe') || 
+                                       tab.url.includes('allerhande') ||
+                                       tab.url.includes('jumbo.com');
+
+                    if (isRecipePage) {
+                        // Set badge to show it's a recipe page
+                        chrome.action.setBadgeText({
+                            tabId: tabId,
+                            text: '🍽️'
+                        });
+                        chrome.action.setBadgeBackgroundColor({
+                            tabId: tabId, 
+                            color: '#4CAF50'
+                        });
+                    } else {
+                        // Clear badge
+                        chrome.action.setBadgeText({
+                            tabId: tabId,
+                            text: ''
+                        });
+                    }
+                } catch (error) {
+                    console.error('Background script error:', error);
+                }
             }
         });
 
@@ -48,52 +74,24 @@ class BackgroundService {
             // Quick health check for badge
             const isRecipe = await this.quickRecipeCheck(tab.url);
             if (isRecipe) {
-                chrome.action.setBadgeText({text: '!', tabId: tab.id});
-                chrome.action.setBadgeBackgroundColor({color: '#4CAF50'});
+                const response = await fetch(`${window.location.origin}/extension/quick-check?url=${encodeURIComponent(tab.url)}`);
+                const data = await response.json();
+
+                if (data.health_score > 0) {
+                    const score = Math.round(data.health_score);
+                    chrome.action.setBadgeText({
+                        text: score.toString(),
+                        tabId: tab.id
+                    });
+                    chrome.action.setBadgeBackgroundColor({
+                        color: data.badge_color === 'green' ? '#4CAF50' :
+                               data.badge_color === 'yellow' ? '#FFC107' :
+                               data.badge_color === 'orange' ? '#FF9800' : '#F44336',
+                        tabId: tab.id
+                    });
+                }
             } else {
                 chrome.action.setBadgeText({text: '', tabId: tab.id});
-            }
-        } catch (error) {
-            console.error('Badge update failed:', error);
-        }
-    }
-
-    isRecipePage(url) {
-        if (!url) return false;
-
-        const recipeIndicators = [
-            'recept', 'recipe', 'cooking', 'kook', 'gerecht',
-            'ingredient', 'bereiding', 'instructions'
-        ];
-
-        return recipeIndicators.some(indicator => 
-            url.toLowerCase().includes(indicator)
-        );
-    }
-
-    async quickRecipeCheck(url) {
-        // Simple heuristic check for recipe pages
-        return this.isRecipePage(url);
-    }
-}
-
-// Initialize background service
-new BackgroundService();
-            const response = await fetch(`${window.location.origin}/extension/quick-check?url=${encodeURIComponent(tab.url)}`);
-            const data = await response.json();
-
-            if (data.health_score > 0) {
-                const score = Math.round(data.health_score);
-                chrome.action.setBadgeText({
-                    text: score.toString(),
-                    tabId: tab.id
-                });
-                chrome.action.setBadgeBackgroundColor({
-                    color: data.badge_color === 'green' ? '#4CAF50' :
-                           data.badge_color === 'yellow' ? '#FFC107' :
-                           data.badge_color === 'orange' ? '#FF9800' : '#F44336',
-                    tabId: tab.id
-                });
             }
         } catch (error) {
             // Silently fail for badge updates
@@ -111,6 +109,11 @@ new BackgroundService();
         return recipeIndicators.some(indicator => 
             url.toLowerCase().includes(indicator)
         );
+    }
+
+    async quickRecipeCheck(url) {
+        // Simple heuristic check for recipe pages
+        return this.isRecipePage(url);
     }
 }
 
