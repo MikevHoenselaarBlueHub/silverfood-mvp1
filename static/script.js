@@ -450,8 +450,9 @@ function displayResults(data) {
             const color = score >= 7 ? '#4CAF50' : score >= 5 ? '#FF9800' : '#F44336';
             
             goalsHtml += `
-                <div class="goal-item">
+                <div class="goal-item" draggable="true">
                     <div class="goal-header">
+                        <span class="drag-handle">⋮⋮</span>
                         <span class="goal-title">${goal}</span>
                         <span class="goal-score">${score}/10</span>
                     </div>
@@ -462,19 +463,32 @@ function displayResults(data) {
             `;
         }
         healthGoals.innerHTML = goalsHtml;
+        
+        // Add drag and drop functionality
+        setupDragAndDrop();
     }
 
     // Update health explanation
     const healthExplanation = document.getElementById('healthExplanation');
     if (healthExplanation) {
         let explanationHtml = '';
+        
+        // Add health score explanation first
+        if (data.health_score_explanation) {
+            explanationHtml += `<div class="explanation-item"><strong>Hoe komen we bij deze score?</strong><br>${data.health_score_explanation}</div>`;
+        }
+        
+        // Add other health explanations
         if (data.health_explanation && data.health_explanation.length > 0) {
             data.health_explanation.forEach(explanation => {
                 explanationHtml += `<div class="explanation-item">${explanation}</div>`;
             });
-        } else {
+        }
+        
+        if (!explanationHtml) {
             explanationHtml = '<div class="explanation-item">Geen uitleg beschikbaar.</div>';
         }
+        
         healthExplanation.innerHTML = explanationHtml;
     }
 
@@ -732,6 +746,45 @@ document.addEventListener("keydown", (e) => {
         hideError();
     }
 });
+
+function setupDragAndDrop() {
+    const goalItems = document.querySelectorAll('.goal-item');
+    let draggedElement = null;
+
+    goalItems.forEach(item => {
+        item.addEventListener('dragstart', (e) => {
+            draggedElement = item;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+        });
+
+        item.addEventListener('dragend', () => {
+            item.classList.remove('dragging');
+            draggedElement = null;
+        });
+
+        item.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        });
+
+        item.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (draggedElement && draggedElement !== item) {
+                const container = item.parentNode;
+                const allItems = [...container.children];
+                const draggedIndex = allItems.indexOf(draggedElement);
+                const targetIndex = allItems.indexOf(item);
+
+                if (draggedIndex < targetIndex) {
+                    container.insertBefore(draggedElement, item.nextSibling);
+                } else {
+                    container.insertBefore(draggedElement, item);
+                }
+            }
+        });
+    });
+}
 
 // Initialize the page
 window.addEventListener("load", async () => {

@@ -97,7 +97,6 @@ body {
     color: #666;
     cursor: pointer;
     transition: var(--transition);
-    border-bottom: 3px solid transparent;
     position: relative;
 }
 
@@ -109,7 +108,6 @@ body {
 
 .tab-btn.active {
     color: var(--primary-color);
-    border-bottom-color: var(--primary-color);
     background: var(--primary-light);
 }
 
@@ -341,6 +339,8 @@ body {
     padding: 20px;
     border-radius: 12px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    cursor: move;
+    user-select: none;
 }
 
 .goal-header {
