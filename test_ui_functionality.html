@@ -262,6 +262,14 @@
             if (!summaryElement) {
                 summaryElement = document.createElement('div');
                 summaryElement.id = 'test-summary';
+                document.body.insertBefore(summaryElement, document.body.firstChild);
+            }
+            
+            const passed = testResults.filter(r => r.passed).length;
+            const total = testResults.length;
+            summaryElement.innerHTML = `<h3>Test Summary: ${passed}/${total} passed</h3>`;Element) {
+                summaryElement = document.createElement('div');
+                summaryElement.id = 'test-summary';
                 summaryElement.style.cssText = `
                     position: fixed;
                     top: 20px;

@@ -85,6 +85,27 @@ def validate_url_format(url: str) -> bool:
 # Statische bestanden serveren
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# Fallback routes for direct file access (backwards compatibility)
+@app.get("/script.js")
+async def script_fallback():
+    return FileResponse("static/script.js")
+
+@app.get("/style.css") 
+async def style_fallback():
+    return FileResponse("static/style.css")
+
+@app.get("/lang.json")
+async def lang_fallback():
+    return FileResponse("static/lang.json")
+
+@app.get("/config.json")
+async def config_fallback():
+    return FileResponse("static/config.json")
+
+@app.get("/health_tips.json")
+async def health_tips_fallback():
+    return FileResponse("static/health_tips.json")
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     """Log alle requests voor monitoring"""

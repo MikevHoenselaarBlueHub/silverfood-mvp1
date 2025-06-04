@@ -13,7 +13,7 @@ class SilverfoodBackground {
         try {
             // Default URLs to try
             const possibleUrls = [
-                'https://silverfood-analyzer.your-username.repl.co',
+                'https://727cfeaf-e405-4336-bdae-5b555824a2d0-00-ceo3089p1ojz.janeway.replit.dev',
                 'http://localhost:5000'
             ];
             
