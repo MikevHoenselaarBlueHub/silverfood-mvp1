@@ -310,31 +310,66 @@ def extract_ingredients_from_text(text: str) -> List[str]:
 
 def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
     """Analyze a single ingredient for health scoring."""
-    # Basic ingredient analysis
-    clean_ingredient = re.sub(r'\d+\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak)', '', ingredient_text).strip()
+    if not ingredient_text or not isinstance(ingredient_text, str):
+        return {
+            'name': 'Onbekend ingrediënt',
+            'original_text': str(ingredient_text) if ingredient_text else '',
+            'health_score': 5,
+            'category': 'unknown'
+        }
+
+    # Basic ingredient analysis - verbeterd voor duplicate text
+    original_text = ingredient_text.strip()
+    
+    # Verwijder duplicaten (bijv. "½0.5 afbakciabatta\n\nafbakciabatta")
+    lines = [line.strip() for line in original_text.split('\n') if line.strip()]
+    if len(lines) > 1:
+        # Neem de langste/meest complete regel
+        ingredient_text = max(lines, key=len)
+    else:
+        ingredient_text = lines[0] if lines else original_text
+
+    # Clean ingredient name
+    clean_ingredient = re.sub(r'\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak|eetlepel|theelepel)', '', ingredient_text).strip()
     clean_ingredient = re.sub(r'^[-*•]\s*', '', clean_ingredient).strip()
+    clean_ingredient = re.sub(r'^\d+(?:\.\d+)?\s*', '', clean_ingredient).strip()  # Remove leading numbers
+    clean_ingredient = re.sub(r'^½\d*\.?\d*\s*', '', clean_ingredient).strip()  # Remove fractions like ½0.5
+
+    # Als clean_ingredient leeg is, gebruik originele tekst
+    if not clean_ingredient:
+        clean_ingredient = ingredient_text.strip()
 
     # Simple health scoring based on keywords
-    healthy_keywords = ['groente', 'fruit', 'volkoren', 'noten', 'vis', 'olijfolie', 'avocado']
-    unhealthy_keywords = ['suiker', 'boter', 'room', 'spek', 'worst', 'gebak']
+    healthy_keywords = ['groente', 'fruit', 'volkoren', 'noten', 'vis', 'olijfolie', 'avocado', 'asperges', 'sperziebonen', 'spinazie', 'peterselie', 'radijs']
+    unhealthy_keywords = ['suiker', 'boter', 'room', 'spek', 'worst', 'gebak', 'friet', 'chips']
 
     health_score = 5  # Default neutral score
 
     ingredient_lower = clean_ingredient.lower()
 
+    # Check for healthy keywords
     for keyword in healthy_keywords:
         if keyword in ingredient_lower:
             health_score = min(10, health_score + 2)
             break
 
+    # Check for unhealthy keywords
     for keyword in unhealthy_keywords:
         if keyword in ingredient_lower:
             health_score = max(1, health_score - 2)
             break
 
+    # Special cases
+    if 'burrata' in ingredient_lower or 'kaas' in ingredient_lower:
+        health_score = 6  # Moderate score for cheese
+    elif 'olijfolie' in ingredient_lower:
+        health_score = 8  # High score for olive oil
+    elif any(veg in ingredient_lower for veg in ['asperges', 'sperziebonen', 'spinazie', 'radijs']):
+        health_score = 9  # Very high for vegetables
+
     return {
         'name': clean_ingredient,
-        'original_text': ingredient_text,
+        'original_text': original_text,
         'health_score': health_score,
         'category': 'unknown'
     }
@@ -364,7 +399,11 @@ def generate_health_explanation(ingredients: List[Dict], health_scores: Dict) ->
     """Generate health explanations."""
     explanations = []
 
-    avg_score = sum(ing['health_score'] for ing in ingredients) / len(ingredients) if ingredients else 5
+    if not ingredients:
+        explanations.append("ℹ️ Geen ingrediënten beschikbaar voor analyse.")
+        return explanations
+
+    avg_score = sum(ing.get('health_score', 5) for ing in ingredients) / len(ingredients)
 
     if avg_score >= 7:
         explanations.append("🌱 Dit recept bevat voornamelijk gezonde ingrediënten!")
@@ -372,6 +411,18 @@ def generate_health_explanation(ingredients: List[Dict], health_scores: Dict) ->
         explanations.append("⚖️ Dit recept heeft een gemiddelde gezondheidscore.")
     else:
         explanations.append("⚠️ Dit recept bevat veel minder gezonde ingrediënten.")
+
+    # Voeg specifieke uitleg toe over ingrediënten
+    healthy_ingredients = [ing for ing in ingredients if ing.get('health_score', 5) >= 7]
+    unhealthy_ingredients = [ing for ing in ingredients if ing.get('health_score', 5) <= 3]
+
+    if healthy_ingredients:
+        healthy_names = [ing.get('name', 'Onbekend') for ing in healthy_ingredients[:3]]
+        explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {', '.join(healthy_names)}")
+
+    if unhealthy_ingredients:
+        unhealthy_names = [ing.get('name', 'Onbekend') for ing in unhealthy_ingredients[:3]]
+        explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join(unhealthy_names)}")
 
     return explanations
 
@@ -493,15 +544,15 @@ def analyse(url_or_text: str) -> Dict[str, Any]:
 
     result = {
         "success": True,
-        "recipe_title": recipe_title,
+        "recipe_title": recipe_title or "Recept Analyse",
         "source": "url" if url_or_text.startswith(('http://', 'https://')) else "text",
-        "all_ingredients": all_ingredients,
-        "total_nutrition": total_nutrition,
-        "health_goals_scores": health_goals_scores,
-        "health_explanation": health_explanation,
-        "swaps": swaps,
+        "all_ingredients": all_ingredients or [],
+        "total_nutrition": total_nutrition or {},
+        "health_goals_scores": health_goals_scores or {},
+        "health_explanation": health_explanation or [],
+        "swaps": swaps or [],
         "ingredient_count": len(all_ingredients),
-        "health_score": round(health_score, 1)
+        "health_score": round(health_score, 1) if health_score else 5.0
     }
 
     logger.info(f"Analysis completed successfully: {len(all_ingredients)} ingredients, health score: {health_score:.1f}")

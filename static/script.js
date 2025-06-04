@@ -211,7 +211,22 @@ async function analyzeRecipe() {
             throw new Error("Ongeldige response van server. Probeer opnieuw.");
         }
 
-        displayResults(data);
+        // Veilige controle van data structuur
+        if (!data || typeof data !== 'object') {
+            throw new Error("Ongeldige response structuur van server.");
+        }
+
+        // Zorg voor veilige fallbacks voor alle verwachte properties
+        const safeData = {
+            ...data,
+            health_explanation: Array.isArray(data.health_explanation) ? data.health_explanation : [],
+            all_ingredients: Array.isArray(data.all_ingredients) ? data.all_ingredients : [],
+            swaps: Array.isArray(data.swaps) ? data.swaps : [],
+            total_nutrition: data.total_nutrition || {},
+            health_goals_scores: data.health_goals_scores || {}
+        };
+
+        displayResults(safeData);
     } catch (error) {
         console.error("Analysis Error:", error);
 
@@ -394,8 +409,9 @@ function displayResults(data) {
     // Display health goals progress bars
     displayHealthGoals(data.health_goals_scores || {});
 
-    // Display health explanation
-    displayHealthExplanation(data.health_explanation || []);
+    // Display health explanation - veilige fallback
+    const healthExplanation = data.health_explanation || [];
+    displayHealthExplanation(Array.isArray(healthExplanation) ? healthExplanation : []);
 
     // Display all ingredients
     displayAllIngredients(data.all_ingredients || []);
@@ -665,13 +681,19 @@ function displayHealthExplanation(explanations) {
     const container = document.getElementById("healthExplanation");
     container.innerHTML = "";
 
-    if (explanations.length === 0) {
+    // Veilige controle of explanations bestaat en een array is
+    if (!explanations || !Array.isArray(explanations) || explanations.length === 0) {
         container.innerHTML =
             '<p style="font-style: italic; color: #666;">Geen gedetailleerde uitleg beschikbaar.</p>';
         return;
     }
 
     explanations.forEach((explanation) => {
+        // Veilige controle of explanation een string is
+        if (!explanation || typeof explanation !== 'string') {
+            return; // Skip deze explanation
+        }
+
         const item = document.createElement("div");
         item.className = "explanation-item";
         item.textContent = explanation;
