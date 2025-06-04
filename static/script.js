@@ -413,77 +413,130 @@ function displayResults(data) {
         return;
     }
 
-    let html = `
-        <div class="results-container">
-            <h2>🍽️ ${data.recipe_title}</h2>
-            <div class="health-score">
-                <h3>Gezondheidscore: ${data.health_score || 'N/A'}/10</h3>
-            </div>
+    // Update the title
+    const titleElement = document.getElementById('recipeTitle');
+    if (titleElement) {
+        titleElement.textContent = data.recipe_title || 'Recept Analyse';
+    }
 
-            <h3>📋 Ingrediënten (${data.ingredient_count})</h3>
-            <div class="ingredients-grid">
-    `;
+    // Update nutrition summary
+    const nutritionGrid = document.getElementById('nutritionGrid');
+    if (nutritionGrid && data.total_nutrition) {
+        let nutritionHtml = '';
+        if (data.total_nutrition.calories) {
+            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Calorieën</span><span class="nutrition-value">${data.total_nutrition.calories}</span></div>`;
+        }
+        if (data.total_nutrition.protein) {
+            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Eiwitten</span><span class="nutrition-value">${data.total_nutrition.protein}g</span></div>`;
+        }
+        if (data.total_nutrition.carbs) {
+            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Koolhydraten</span><span class="nutrition-value">${data.total_nutrition.carbs}g</span></div>`;
+        }
+        if (data.total_nutrition.fat) {
+            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Vetten</span><span class="nutrition-value">${data.total_nutrition.fat}g</span></div>`;
+        }
+        if (data.total_nutrition.fiber) {
+            nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">Vezels</span><span class="nutrition-value">${data.total_nutrition.fiber}g</span></div>`;
+        }
+        nutritionGrid.innerHTML = nutritionHtml;
+    }
 
-    if (data.all_ingredients && data.all_ingredients.length > 0) {
-        data.all_ingredients.forEach(ingredient => {
-            const healthScore = ingredient.health_score || 5;
-            const healthColor = healthScore >= 7 ? '#4CAF50' : healthScore >= 5 ? '#FF9800' : '#F44336';
-            const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
-
-            html += `
-                <div class="ingredient-card" style="border-left: 4px solid ${healthColor}">
-                    <div class="ingredient-header">
-                        <span class="ingredient-name">${ingredient.name}</span>
-                        <span class="health-badge">${healthIcon} ${healthScore}/10</span>
+    // Update health goals
+    const healthGoals = document.getElementById('healthGoals');
+    if (healthGoals && data.health_goals_scores) {
+        let goalsHtml = '';
+        for (const [goal, score] of Object.entries(data.health_goals_scores)) {
+            const percentage = Math.min(100, (score / 10) * 100);
+            const color = score >= 7 ? '#4CAF50' : score >= 5 ? '#FF9800' : '#F44336';
+            
+            goalsHtml += `
+                <div class="goal-item">
+                    <div class="goal-header">
+                        <span class="goal-title">${goal}</span>
+                        <span class="goal-score">${score}/10</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: ${percentage}%; background-color: ${color};"></div>
                     </div>
                 </div>
             `;
-        });
+        }
+        healthGoals.innerHTML = goalsHtml;
     }
 
-    html += `
-            </div>
-
-            <h3>💡 Gezondheidsuitleg</h3>
-            <div class="health-explanation">
-    `;
-
-    if (data.health_explanation && data.health_explanation.length > 0) {
-        data.health_explanation.forEach(explanation => {
-            html += `<p>${explanation}</p>`;
-        });
-    } else {
-        html += '<p>Geen uitleg beschikbaar.</p>';
+    // Update health explanation
+    const healthExplanation = document.getElementById('healthExplanation');
+    if (healthExplanation) {
+        let explanationHtml = '';
+        if (data.health_explanation && data.health_explanation.length > 0) {
+            data.health_explanation.forEach(explanation => {
+                explanationHtml += `<div class="explanation-item">${explanation}</div>`;
+            });
+        } else {
+            explanationHtml = '<div class="explanation-item">Geen uitleg beschikbaar.</div>';
+        }
+        healthExplanation.innerHTML = explanationHtml;
     }
 
-    html += `
-            </div>
+    // Update ingredients
+    const allIngredients = document.getElementById('allIngredients');
+    if (allIngredients) {
+        let ingredientsHtml = '';
+        if (data.all_ingredients && data.all_ingredients.length > 0) {
+            data.all_ingredients.forEach(ingredient => {
+                const healthScore = ingredient.health_score || 5;
+                const healthClass = healthScore >= 7 ? 'healthy' : healthScore >= 5 ? 'neutral' : 'unhealthy';
+                const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
 
-            <h3>🔄 Gezondere alternatieven</h3>
-            <div class="swaps-container">
-    `;
-
-    if (data.swaps && data.swaps.length > 0) {
-        data.swaps.forEach(swap => {
-            html += `
-                <div class="swap-card">
-                    <strong>Vervang:</strong> ${swap.original}<br>
-                    <strong>Door:</strong> ${swap.suggestion}<br>
-                    <small><em>${swap.reason}</em></small>
-                </div>
-            `;
-        });
-    } else {
-        html += '<p>Dit recept bevat al grotendeels gezonde ingrediënten! 🎉</p>';
+                ingredientsHtml += `
+                    <div class="ingredient-item ${healthClass}">
+                        <div class="ingredient-info">
+                            <div class="ingredient-name">${ingredient.name}</div>
+                            ${ingredient.details ? `<div class="ingredient-details">${ingredient.details}</div>` : ''}
+                            ${ingredient.health_fact ? `<div class="health-fact">${ingredient.health_fact}</div>` : ''}
+                            ${ingredient.substitution ? `<div class="substitution">💡 Alternatief: ${ingredient.substitution}</div>` : ''}
+                        </div>
+                        <div class="health-badge">${healthIcon} ${healthScore}/10</div>
+                    </div>
+                `;
+            });
+        } else {
+            ingredientsHtml = '<p>Geen ingrediënten gevonden.</p>';
+        }
+        allIngredients.innerHTML = ingredientsHtml;
     }
 
-    html += `
-            </div>
-        </div>
-    `;
+    // Update swaps
+    const swapsSection = document.getElementById('swapsSection');
+    const swapsList = document.getElementById('swapsList');
+    if (swapsSection && swapsList) {
+        if (data.swaps && data.swaps.length > 0) {
+            let swapsHtml = '';
+            data.swaps.forEach(swap => {
+                swapsHtml += `
+                    <div class="swap-item">
+                        <div class="swap-from">❌ ${swap.original}</div>
+                        <div class="swap-arrow">⬇️</div>
+                        <div class="swap-to">✅ ${swap.suggestion}</div>
+                        <div style="margin-top: 10px; font-style: italic; color: #666;">${swap.reason}</div>
+                    </div>
+                `;
+            });
+            swapsList.innerHTML = swapsHtml;
+            swapsSection.style.display = 'block';
+        } else {
+            swapsSection.style.display = 'none';
+        }
+    }
 
-    resultsDiv.innerHTML = html;
+    // Show results
     resultsDiv.style.display = 'block';
+    resultsDiv.scrollIntoView({ behavior: 'smooth' });
+}
+
+// Add print function
+function printResults() {
+    window.print();
 }
 
 function showError(message, title = "Er is een fout opgetreden") {

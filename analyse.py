@@ -271,30 +271,30 @@ def extract_ingredients_from_text(text: str) -> List[str]:
 
     # Split text into lines and filter for potential ingredients
     lines = [line.strip() for line in text.split('\n') if line.strip()]
-    
+
     # Clean and deduplicate lines
     cleaned_lines = []
     seen_ingredients = set()
-    
+
     for line in lines:
         if not line or len(line) < 3:
             continue
-            
+
         # Fix common copy-paste formatting issues from AH and other recipe sites
         cleaned_line = clean_ingredient_line(line)
-        
+
         if cleaned_line:
             # Check for duplicates - if this is just the ingredient name without amounts,
             # and we already have a line with amounts for this ingredient, skip it
             ingredient_name = extract_ingredient_name_only(cleaned_line)
-            
+
             # Skip if we already have this ingredient name with measurements
             skip_duplicate = False
             for seen_name in seen_ingredients:
                 if ingredient_name.lower() in seen_name.lower() and has_measurements(seen_name):
                     skip_duplicate = True
                     break
-                    
+
             if not skip_duplicate:
                 cleaned_lines.append(cleaned_line)
                 seen_ingredients.add(cleaned_line)
@@ -331,19 +331,19 @@ def extract_ingredients_from_text(text: str) -> List[str]:
 def clean_ingredient_line(line: str) -> str:
     """Clean ingredient line from copy-paste formatting issues."""
     # Fix common AH.nl copy-paste issues like "500g500 gram" -> "500 gram"
-    
+
     # Pattern: aantal+eenheid+aantal+spatie+eenheid (bijv. "500g500 gram")
     line = re.sub(r'(\d+(?:\.\d+)?)\s*(g|kg|ml|l|el|tl|gram|kilogram|liter|eetlepel|theelepel)\d+\s+(gram|kilogram|liter|eetlepel|theelepel)', r'\1 \3', line)
-    
+
     # Pattern: aantal+eenheid+aantal+eenheid (bijv. "3el3 eetlepel")
     line = re.sub(r'(\d+(?:\.\d+)?)(el|tl|g|kg|ml|l)\d+\s+(eetlepel|theelepel|gram|kilogram|liter)', r'\1 \3', line)
-    
+
     # Pattern: ½aantal -> ½ aantal
     line = re.sub(r'½(\d+(?:\.\d+)?)', r'0.5', line)
-    
+
     # Clean up multiple spaces
     line = re.sub(r'\s+', ' ', line).strip()
-    
+
     return line
 
 def extract_ingredient_name_only(line: str) -> str:
@@ -359,6 +359,251 @@ def has_measurements(line: str) -> bool:
     measurement_pattern = r'\d+(?:\.\d+)?\s*(gram|g|kg|ml|l|el|tl|eetlepel|theelepel|stuks?|blik|pak)'
     return bool(re.search(measurement_pattern, line, re.IGNORECASE))
 
+def translate_ingredient_to_dutch(ingredient_name):
+    """Vertaal ingrediënt naar Nederlands"""
+    translations = {
+        # Basis ingrediënten
+        'flour': 'bloem',
+        'all-purpose flour': 'bloem (patent)',
+        'sugar': 'suiker',
+        'granulated sugar': 'kristalsuiker',
+        'brown sugar': 'bruine suiker',
+        'butter': 'boter',
+        'eggs': 'eieren',
+        'egg': 'ei',
+        'milk': 'melk',
+        'salt': 'zout',
+        'baking powder': 'bakpoeder',
+        'baking soda': 'zuiveringszout',
+        'vanilla': 'vanille',
+        'vanilla extract': 'vanille-extract',
+        'oil': 'olie',
+        'vegetable oil': 'plantaardige olie',
+        'olive oil': 'olijfolie',
+        'water': 'water',
+        'cream': 'room',
+        'heavy cream': 'slagroom',
+        'sour cream': 'zure room',
+        'cream cheese': 'roomkaas',
+        'cheese': 'kaas',
+        'cheddar cheese': 'cheddar kaas',
+        'parmesan cheese': 'parmezaanse kaas',
+
+        # Fruit
+        'banana': 'banaan',
+        'bananas': 'bananen',
+        'apple': 'appel',
+        'apples': 'appels',
+        'orange': 'sinaasappel',
+        'lemon': 'citroen',
+        'lime': 'limoen',
+        'pineapple': 'ananas',
+        'strawberry': 'aardbei',
+        'strawberries': 'aardbeien',
+        'blueberry': 'bosbes',
+        'blueberries': 'bosbessen',
+        'raspberry': 'framboos',
+        'raspberries': 'frambozen',
+        'peach': 'perzik',
+        'peaches': 'perziken',
+        'pear': 'peer',
+        'pears': 'peren',
+
+        # Groenten
+        'onion': 'ui',
+        'onions': 'uien',
+        'garlic': 'knoflook',
+        'tomato': 'tomaat',
+        'tomatoes': 'tomaten',
+        'carrot': 'wortel',
+        'carrots': 'wortels',
+        'potato': 'aardappel',
+        'potatoes': 'aardappels',
+        'bell pepper': 'paprika',
+        'red bell pepper': 'rode paprika',
+        'green bell pepper': 'groene paprika',
+        'cucumber': 'komkommer',
+        'lettuce': 'sla',
+        'spinach': 'spinazie',
+        'broccoli': 'broccoli',
+        'cauliflower': 'bloemkool',
+        'mushroom': 'champignon',
+        'mushrooms': 'champignons',
+
+        # Vlees en vis
+        'chicken': 'kip',
+        'chicken breast': 'kipfilet',
+        'beef': 'rundvlees',
+        'ground beef': 'gehakt',
+        'pork': 'varkensvlees',
+        'bacon': 'spek',
+        'ham': 'ham',
+        'fish': 'vis',
+        'salmon': 'zalm',
+        'tuna': 'tonijn',
+        'shrimp': 'garnalen',
+
+        # Noten en zaden
+        'nuts': 'noten',
+        'almonds': 'amandelen',
+        'walnuts': 'walnoten',
+        'peanuts': 'pinda\'s',
+        'cashews': 'cashewnoten',
+        'pine nuts': 'pijnboompitten',
+        'sunflower seeds': 'zonnebloempitten',
+        'pumpkin seeds': 'pompoenpitten',
+
+        # Kruiden en specerijen
+        'pepper': 'peper',
+        'black pepper': 'zwarte peper',
+        'paprika': 'paprikapoeder',
+        'cumin': 'komijn',
+        'oregano': 'oregano',
+        'basil': 'basilicum',
+        'thyme': 'tijm',
+        'rosemary': 'rozemarijn',
+        'parsley': 'peterselie',
+        'cilantro': 'koriander',
+        'dill': 'dille',
+        'sage': 'salie',
+        'cinnamon': 'kaneel',
+        'nutmeg': 'nootmuskaat',
+        'ginger': 'gember',
+        'turmeric': 'kurkuma',
+
+        # Granen en pasta
+        'rice': 'rijst',
+        'bread': 'brood',
+        'pasta': 'pasta',
+        'spaghetti': 'spaghetti',
+        'noodles': 'noedels',
+        'oats': 'haver',
+        'quinoa': 'quinoa',
+        'barley': 'gerst',
+
+        # Peulvruchten
+        'beans': 'bonen',
+        'black beans': 'zwarte bonen',
+        'kidney beans': 'kidneybonen',
+        'chickpeas': 'kikkererwten',
+        'lentils': 'linzen',
+        'peas': 'erwten',
+
+        # Overig
+        'chocolate': 'chocolade',
+        'cocoa powder': 'cacaopoeder',
+        'honey': 'honing',
+        'maple syrup': 'ahornsiroop',
+        'vinegar': 'azijn',
+        'wine': 'wijn',
+        'beer': 'bier',
+        'stock': 'bouillon',
+        'broth': 'bouillon',
+        'chicken stock': 'kippenbouillon',
+        'vegetable stock': 'groentebouillon',
+        'soy sauce': 'sojasaus',
+        'worcestershire sauce': 'worcestersaus',
+        'hot sauce': 'hete saus',
+        'ketchup': 'ketchup',
+        'mayonnaise': 'mayonaise',
+        'mustard': 'mosterd',
+        'jam': 'jam',
+        'jelly': 'gelei',
+        'peanut butter': 'pindakaas',
+    }
+
+    # Maak lowercase voor matching
+    name_lower = ingredient_name.lower().strip()
+
+    # Directe match
+    if name_lower in translations:
+        return translations[name_lower]
+
+    # Probeer gedeeltelijke matches voor samengestelde ingrediënten
+    for eng_term, dutch_term in translations.items():
+        if eng_term in name_lower:
+            return ingredient_name.lower().replace(eng_term, dutch_term)
+
+    # Als geen vertaling gevonden, return origineel
+    return ingredient_name
+
+def normalize_ingredient_name(name):
+    """Normalize ingredient name."""
+    name = name.lower()
+    # Remove plurals and special characters
+    name = re.sub(r's$', '', name)
+    name = re.sub(r'[^a-z\s]', '', name)
+    return name.strip()
+
+def find_substitution(ingredient_name: str, substitutions_db: Dict[str, Any]) -> Dict[str, Any]:
+    """Find ingredient substitution in the database."""
+    # Fuzzy search for the ingredient
+    best_match = None
+    best_score = 0
+
+    for key in substitutions_db.keys():
+        score = fuzz.ratio(ingredient_name, key)
+        if score > best_score:
+            best_score = score
+            best_match = key
+
+    if best_score > 70:
+        return substitutions_db[best_match]
+    else:
+        return {}
+
+def calculate_health_score(ingredient_name: str, substitution_data: Dict[str, Any]) -> int:
+    """Calculate health score for an ingredient."""
+    if substitution_data:
+        return substitution_data.get('health_score', 5)
+    else:
+        # Implement simple keyword-based scoring
+        if 'groente' in ingredient_name or 'fruit' in ingredient_name:
+            return 8
+        elif 'suiker' in ingredient_name or 'vet' in ingredient_name:
+            return 3
+        else:
+            return 5
+
+def process_recipe_ingredients(ingredients: List[str], substitutions_db: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Process recipe ingredients, normalize names, and calculate health scores."""
+    processed_ingredients = []
+
+    # Verwerk elk ingredient
+    for ingredient in ingredients:
+        try:
+            # Vertaal eerst naar Nederlands als het Engels lijkt te zijn
+            translated_name = translate_ingredient_to_dutch(ingredient)
+
+            # Normaliseer de naam
+            normalized_name = normalize_ingredient_name(translated_name)
+
+            # Skip als leeg
+            if not normalized_name:
+                continue
+
+            # Zoek in substitutie database
+            substitution_data = find_substitution(normalized_name, substitutions_db)
+
+            # Bereken health score
+            health_score = calculate_health_score(normalized_name, substitution_data)
+
+            processed_ingredient = {
+                'name': normalized_name,
+                'health_score': health_score,
+                'details': substitution_data.get('details', ''),
+                'health_fact': substitution_data.get('health_fact', ''),
+                'substitution': substitution_data.get('substitution', '')
+            }
+
+            processed_ingredients.append(processed_ingredient)
+
+        except Exception as e:
+            logger.warning(f"Error processing ingredient '{ingredient}': {e}")
+            continue
+
+    return processed_ingredients
+
 def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
     """Analyze a single ingredient for health scoring with structured parsing."""
     if not ingredient_text or not isinstance(ingredient_text, str):
@@ -373,7 +618,7 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
 
     # Basic ingredient analysis - verbeterd voor duplicate text
     original_text = ingredient_text.strip()
-    
+
     # Verwijder duplicaten (bijv. "½0.5 afbakciabatta\n\nafbakciabatta")
     lines = [line.strip() for line in original_text.split('\n') if line.strip()]
     if len(lines) > 1:
@@ -426,10 +671,10 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
 
 def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], Optional[str], str]:
     """Parse ingredient text into quantity, unit, and name components."""
-    
+
     # Normalize fractions first
     text = ingredient_text.replace('½', '0.5')
-    
+
     # Common unit mappings
     unit_mappings = {
         'g': 'gram',
@@ -448,7 +693,7 @@ def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], 
         'snufje': 'snufje',
         'snufjes': 'snufje'
     }
-    
+
     # Try to match quantity and unit patterns
     patterns = [
         # Pattern: "500 gram verse witte asperges"
@@ -460,7 +705,7 @@ def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], 
         # Pattern: "22 nectarines" (just number + name)
         r'^(\d+(?:\.\d+)?)\s+(.+)',
     ]
-    
+
     for pattern in patterns:
         match = re.match(pattern, text, re.IGNORECASE)
         if match:
@@ -480,11 +725,11 @@ def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], 
                     return quantity, 'stuks', name.strip()
                 except ValueError:
                     pass
-    
+
     # If no pattern matches, return just the clean name
     clean_name = re.sub(r'^\d+(?:\.\d+)?\s*', '', text).strip()
     clean_name = re.sub(r'^(g|kg|l|ml|el|tl|gram|kilogram|liter|milliliter|eetlepel|theelepel)\s*', '', clean_name, flags=re.IGNORECASE).strip()
-    
+
     return None, None, clean_name if clean_name else text.strip()
 
 def calculate_total_nutrition(ingredients: List[Dict]) -> Dict[str, float]:
@@ -551,7 +796,7 @@ def generate_healthier_swaps(ingredients: List[Dict]) -> List[Dict]:
                 swaps.append({
                     'original': ingredient['name'],
                     'suggestion': 'Olijfolie of avocado',
-                    'reason': 'Gezondere vetten'
+                    'reason': 'Gezonderevetten'
                 })
             elif 'suiker' in name_lower:
                 swaps.append({
@@ -699,28 +944,28 @@ if __name__ == "__main__":
 def calculate_portions(ingredients: List[Dict], target_portions: int, original_portions: int = 4) -> List[Dict]:
     """
     Calculate ingredient quantities for different number of portions.
-    
+
     Args:
         ingredients: List of ingredient dictionaries with quantity and unit
         target_portions: Target number of portions
         original_portions: Original recipe portions (default 4)
-        
+
     Returns:
         List of ingredients with adjusted quantities
     """
     if target_portions <= 0 or original_portions <= 0:
         return ingredients
-        
+
     portion_multiplier = target_portions / original_portions
     adjusted_ingredients = []
-    
+
     for ingredient in ingredients:
         adjusted_ingredient = ingredient.copy()
-        
+
         if ingredient.get('quantity') is not None:
             original_quantity = ingredient['quantity']
             new_quantity = original_quantity * portion_multiplier
-            
+
             # Round to reasonable precision
             if new_quantity < 1:
                 # For small amounts, round to 1 decimal place
@@ -731,7 +976,7 @@ def calculate_portions(ingredients: List[Dict], target_portions: int, original_p
             else:
                 # For large amounts, round to nearest whole number
                 adjusted_ingredient['quantity'] = round(new_quantity)
-            
+
             # Update display text
             if adjusted_ingredient['quantity'] and adjusted_ingredient.get('unit'):
                 adjusted_ingredient['display_text'] = f"{adjusted_ingredient['quantity']} {adjusted_ingredient['unit']} {adjusted_ingredient['name']}"
@@ -740,37 +985,37 @@ def calculate_portions(ingredients: List[Dict], target_portions: int, original_p
         else:
             # No quantity info, keep as-is
             adjusted_ingredient['display_text'] = adjusted_ingredient['name']
-            
+
         adjusted_ingredients.append(adjusted_ingredient)
-    
+
     return adjusted_ingredients
 
 def detect_recipe_portions(ingredients: List[Dict]) -> int:
     """
     Try to detect how many portions a recipe is for based on ingredient quantities.
-    
+
     Args:
         ingredients: List of ingredient dictionaries
-        
+
     Returns:
         Estimated number of portions (default 4 if unclear)
     """
     # Look for clues in quantities - this is a simple heuristic
     protein_quantities = []
-    
+
     for ingredient in ingredients:
         name_lower = ingredient.get('name', '').lower()
         quantity = ingredient.get('quantity')
         unit = ingredient.get('unit', '').lower()
-        
+
         # Look for main protein sources and their typical quantities
         if quantity and unit in ['gram', 'g']:
             if any(protein in name_lower for protein in ['vlees', 'kip', 'vis', 'gehakt', 'burrata', 'kaas']):
                 protein_quantities.append(quantity)
-    
+
     if protein_quantities:
         avg_protein = sum(protein_quantities) / len(protein_quantities)
-        
+
         # Rough estimation based on protein amounts
         if avg_protein < 150:
             return 2
@@ -780,6 +1025,8 @@ def detect_recipe_portions(ingredients: List[Dict]) -> int:
             return 6
         else:
             return 8
-    
+
     # Default to 4 portions if we can't determine
     return 4
+
+# The following code includes ingredient translation functionality and updates the ingredient processing to include translation.
