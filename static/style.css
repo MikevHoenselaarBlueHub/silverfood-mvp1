@@ -428,11 +428,22 @@ body {
     transition: all 0.3s ease;
     font-size: 16px;
     color: #666;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .hide-goal-btn:hover {
     background: rgba(0,0,0,0.1);
     transform: scale(1.1);
+}
+
+.hide-goal-btn svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
 }
 
 .goal-item.hidden {
@@ -560,6 +571,40 @@ body {
     margin-bottom: 25px; /* Meer ruimte */
     color: var(--dark-color);
     font-size: 1.6rem; /* Grotere titel */
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.ingredient-sort-control {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1rem;
+    font-weight: normal;
+}
+
+.ingredient-sort-control label {
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.ingredient-sort-control select {
+    padding: 8px 12px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.ingredient-sort-control select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(245, 128, 41, 0.2);
 }
 
 .ingredient-item {

@@ -130,21 +130,37 @@ function toggleGoalVisibility(goalName) {
     updateGoalsDisplay();
 }
 
+async function loadSVGIcon(iconPath) {
+    try {
+        const response = await fetch(iconPath);
+        if (response.ok) {
+            return await response.text();
+        }
+    } catch (error) {
+        console.log('Failed to load SVG icon:', iconPath);
+    }
+    return null;
+}
+
+let hideIconSVG = null;
+let showIconSVG = null;
+
+async function loadIcons() {
+    hideIconSVG = await loadSVGIcon('/icons/hide_icon.svg');
+    showIconSVG = await loadSVGIcon('/icons/show_icon.svg');
+}
+
 function updateGoalsDisplay() {
     const allGoals = document.querySelectorAll('.goal-item');
-    const visibleGoals = [];
-    const hiddenGoalsElements = [];
-
+    
     allGoals.forEach(goal => {
         const titleElement = goal.querySelector('.goal-title');
         const goalName = titleElement ? titleElement.textContent.trim() : '';
 
         if (hiddenGoals.includes(goalName)) {
-            goal.classList.add('hidden');
-            hiddenGoalsElements.push(goal);
+            goal.style.display = 'none';
         } else {
-            goal.classList.remove('hidden');
-            visibleGoals.push(goal);
+            goal.style.display = 'block';
         }
     });
 
@@ -174,11 +190,16 @@ function updateHiddenGoalsToggle() {
             container.appendChild(hiddenSection);
         }
 
-        toggleButton.textContent = t('show_hidden_goals');
+        toggleButton.innerHTML = `${t('show_hidden_goals')} <span style="margin-left: 8px;">▼</span>`;
         toggleButton.title = `${hiddenGoals.length} verborgen doelen bekijken`;
+        toggleButton.style.display = 'block';
     } else {
-        if (toggleButton) toggleButton.remove();
-        if (hiddenSection) hiddenSection.remove();
+        if (toggleButton) {
+            toggleButton.style.display = 'none';
+        }
+        if (hiddenSection) {
+            hiddenSection.style.display = 'none';
+        }
     }
 }
 
@@ -273,6 +294,50 @@ function setupDragAndDrop() {
             }
         });
     });
+}
+
+// Ingredient sorting functionality
+let ingredientSortOrder = localStorage.getItem('ingredientSortOrder') || 'alphabet';
+
+function saveIngredientSortOrder() {
+    localStorage.setItem('ingredientSortOrder', ingredientSortOrder);
+}
+
+function sortIngredients(ingredients, sortOrder) {
+    if (sortOrder === 'alphabet') {
+        return ingredients.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (sortOrder === 'health') {
+        return ingredients.sort((a, b) => (b.health_score || 5) - (a.health_score || 5));
+    }
+    return ingredients;
+}
+
+function createSortingControl() {
+    return `
+        <div class="ingredient-sort-control">
+            <label for="sort-select">${t('sort_by')}:</label>
+            <select id="sort-select" onchange="changeSortOrder(this.value)">
+                <option value="alphabet" ${ingredientSortOrder === 'alphabet' ? 'selected' : ''}>${t('alphabet')}</option>
+                <option value="health" ${ingredientSortOrder === 'health' ? 'selected' : ''}>${t('health_score')}</option>
+            </select>
+        </div>
+    `;
+}
+
+function changeSortOrder(newOrder) {
+    ingredientSortOrder = newOrder;
+    saveIngredientSortOrder();
+    
+    // Re-render ingredients with new sort order
+    const allIngredients = document.getElementById('allIngredients');
+    if (allIngredients && window.currentIngredients) {
+        displayIngredientsList(window.currentIngredients);
+    }
+}
+
+function capitalizeName(name) {
+    if (!name) return '';
+    return name.charAt(0).toUpperCase() + name.slice(1);
 }
 
 // DOM elementen - gebruik lazy loading om null errors te voorkomen
@@ -699,6 +764,39 @@ function displayResults(data) {
 
     updateNutritionDisplay();
 
+    function displayIngredientsList(ingredients) {
+    const allIngredients = document.getElementById('allIngredients');
+    if (!allIngredients) return;
+
+    let ingredientsHtml = '';
+    if (ingredients && ingredients.length > 0) {
+        // Sort ingredients based on current sort order
+        const sortedIngredients = sortIngredients([...ingredients], ingredientSortOrder);
+        
+        sortedIngredients.forEach(ingredient => {
+            const healthScore = ingredient.health_score || 5;
+            const healthClass = healthScore >= 7 ? 'healthy' : healthScore >= 5 ? 'neutral' : 'unhealthy';
+            const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
+            const capitalizedName = capitalizeName(ingredient.name);
+
+            ingredientsHtml += `
+                <div class="ingredient-item ${healthClass}">
+                    <div class="ingredient-info">
+                        <div class="ingredient-name">${capitalizedName}</div>
+                        ${ingredient.details ? `<div class="ingredient-details">${ingredient.details}</div>` : ''}
+                        ${ingredient.health_fact ? `<div class="health-fact">${ingredient.health_fact}</div>` : ''}
+                        ${ingredient.substitution ? `<div class="substitution">💡 Alternatief: ${ingredient.substitution}</div>` : ''}
+                    </div>
+                    <div class="health-badge">${healthIcon} ${healthScore}/10</div>
+                </div>
+            `;
+        });
+    } else {
+        ingredientsHtml = '<p>Geen ingrediënten gevonden.</p>';
+    }
+    allIngredients.innerHTML = ingredientsHtml;
+}
+
     // Update health goals with hide/show functionality
     const healthGoals = document.getElementById('healthGoals');
     if (healthGoals && data.health_goals_scores) {
@@ -709,8 +807,12 @@ function displayResults(data) {
             const translatedGoal = t(`health_goals_list.${goal}`) || goal;
             const isHidden = hiddenGoals.includes(goal);
 
+            const hideIcon = isHidden ? 
+                (showIconSVG || '👁️') : 
+                (hideIconSVG || '🚫👁️');
+
             goalsHtml += `
-                <div class="goal-item ${isHidden ? 'hidden' : ''}" draggable="true">
+                <div class="goal-item" draggable="true" data-goal="${goal}">
                     <div class="goal-header">
                         <span class="drag-handle" title="Versleep om volgorde te wijzigen">⋮⋮</span>
                         <span class="goal-title">${translatedGoal}</span>
@@ -720,7 +822,7 @@ function displayResults(data) {
                                     onclick="toggleGoalVisibility('${goal}')"
                                     title="${isHidden ? t('show_goal') : t('hide_goal')}"
                                     aria-label="${isHidden ? t('show_goal') : t('hide_goal')}">
-                                ${isHidden ? '👁️' : '🚫👁️'}
+                                ${hideIcon}
                             </button>
                         </div>
                     </div>
@@ -764,29 +866,15 @@ function displayResults(data) {
     // Update ingredients
     const allIngredients = document.getElementById('allIngredients');
     if (allIngredients) {
-        let ingredientsHtml = '';
-        if (data.all_ingredients && data.all_ingredients.length > 0) {
-            data.all_ingredients.forEach(ingredient => {
-                const healthScore = ingredient.health_score || 5;
-                const healthClass = healthScore >= 7 ? 'healthy' : healthScore >= 5 ? 'neutral' : 'unhealthy';
-                const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
+        // Store ingredients globally for sorting
+        window.currentIngredients = data.all_ingredients || [];
+        displayIngredientsList(window.currentIngredients);
+    }
 
-                ingredientsHtml += `
-                    <div class="ingredient-item ${healthClass}">
-                        <div class="ingredient-info">
-                            <div class="ingredient-name">${ingredient.name}</div>
-                            ${ingredient.details ? `<div class="ingredient-details">${ingredient.details}</div>` : ''}
-                            ${ingredient.health_fact ? `<div class="health-fact">${ingredient.health_fact}</div>` : ''}
-                            ${ingredient.substitution ? `<div class="substitution">💡 Alternatief: ${ingredient.substitution}</div>` : ''}
-                        </div>
-                        <div class="health-badge">${healthIcon} ${healthScore}/10</div>
-                    </div>
-                `;
-            });
-        } else {
-            ingredientsHtml = '<p>Geen ingrediënten gevonden.</p>';
-        }
-        allIngredients.innerHTML = ingredientsHtml;
+    // Update ingredients section title with sorting controls
+    const ingredientsTitle = document.querySelector('.ingredients-section h3');
+    if (ingredientsTitle && !document.getElementById('sort-select')) {
+        ingredientsTitle.innerHTML = `${t('all_ingredients')} ${createSortingControl()}`;
     }
 
     // Update swaps
@@ -1023,6 +1111,10 @@ window.addEventListener("load", async () => {
         await loadLanguage();
         await loadConfiguration();
         await loadHealthTips();
+        await loadIcons();
+        
+        // Load saved sort order
+        ingredientSortOrder = localStorage.getItem('ingredientSortOrder') || 'alphabet';
     } catch (error) {
         console.error("Error loading configuration:", error);
     }

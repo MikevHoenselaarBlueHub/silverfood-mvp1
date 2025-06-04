@@ -1,4 +1,3 @@
-
 {
   "nl": {
     "recipe_analysis": "Receptenanalyse",
@@ -33,7 +32,10 @@
     "protein": "Eiwitten", 
     "carbs": "Koolhydraten",
     "fat": "Vetten",
-    "fiber": "Vezels"
+    "fiber": "Vezels",
+    "sort_by": "Sorteer op",
+    "alphabet": "Alfabet",
+    "health_score": "Gezondheidscore"
   },
   "en": {
     "recipe_analysis": "Recipe Analysis",
