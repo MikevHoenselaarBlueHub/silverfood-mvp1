@@ -448,8 +448,7 @@ def translate_ingredient_to_dutch(ingredient_name):
         'almonds': 'amandelen',
         'walnuts': 'walnoten',
         'peanuts': 'pinda\'s',
-        ```
-cashews': 'cashewnoten',
+        'cashews': 'cashewnoten',
         'pine nuts': 'pijnboompitten',
         'sunflower seeds': 'zonnebloempitten',
         'pumpkin seeds': 'pompoenpitten',
