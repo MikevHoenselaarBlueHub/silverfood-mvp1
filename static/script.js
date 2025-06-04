@@ -1,4 +1,3 @@
-
 // Language support
 let currentLanguage = 'nl';
 let translations = {};
@@ -94,7 +93,7 @@ function createPortionsControl() {
 function updatePortions(newPortions) {
     currentPortions = parseInt(newPortions);
     document.getElementById('portions-display').textContent = currentPortions;
-    
+
     // Save to localStorage
     savePortions();
     console.log('Portions updated and saved:', currentPortions);
@@ -152,7 +151,7 @@ function toggleGoalVisibility(goalName) {
         goalElement.style.transform = 'translateX(-100%)';
         goalElement.style.opacity = '0';
         goalElement.style.display = 'block';
-        
+
         setTimeout(() => {
             goalElement.style.transition = 'all 0.3s ease-in-out';
             goalElement.style.transform = 'translateX(0)';
@@ -164,7 +163,7 @@ function toggleGoalVisibility(goalName) {
         goalElement.style.transition = 'all 0.3s ease-in-out';
         goalElement.style.transform = 'translateX(-100%)';
         goalElement.style.opacity = '0';
-        
+
         setTimeout(() => {
             goalElement.style.display = 'none';
             goalElement.style.transform = '';
@@ -174,7 +173,7 @@ function toggleGoalVisibility(goalName) {
     }
 
     saveHiddenGoals();
-    
+
     // Update the button icon immediately
     const hideButton = goalElement.querySelector('.hide-goal-btn');
     if (hideButton) {
@@ -212,14 +211,14 @@ async function loadIcons() {
 
 function updateGoalsDisplay() {
     const allGoals = document.querySelectorAll('.goal-item');
-    
+
     allGoals.forEach(goal => {
         const goalDataAttribute = goal.getAttribute('data-goal');
         const titleElement = goal.querySelector('.goal-title');
         const goalName = goalDataAttribute || (titleElement ? titleElement.textContent.trim() : '');
 
         const isHidden = hiddenGoals.includes(goalName);
-        
+
         // Only update display if it's not already in the correct state
         if (isHidden && goal.style.display !== 'none') {
             goal.style.display = 'none';
@@ -267,7 +266,7 @@ function updateHiddenGoalsToggle() {
         toggleButton.innerHTML = `${isExpanded ? t('hide_hidden_goals') : t('show_hidden_goals')} <span style="margin-left: 8px;">${isExpanded ? '▲' : '▼'}</span>`;
         toggleButton.title = `${hiddenGoals.length} verborgen doelen ${isExpanded ? 'verbergen' : 'bekijken'}`;
         toggleButton.style.display = 'block';
-        
+
         // Update hidden section content
         updateHiddenGoalsSection();
     } else {
@@ -312,7 +311,7 @@ function updateHiddenGoalsSection() {
             clone.style.display = 'block';
             clone.style.opacity = '0.7';
             clone.style.background = '#f5f5f5';
-            
+
             // Update the hide button to show "show" functionality
             const hideButton = clone.querySelector('.hide-goal-btn');
             if (hideButton) {
@@ -320,7 +319,7 @@ function updateHiddenGoalsSection() {
                 hideButton.title = t('show_goal');
                 hideButton.onclick = () => toggleGoalVisibility(goalName);
             }
-            
+
             section.appendChild(clone);
         }
     });
@@ -364,7 +363,7 @@ function setupDragAndDrop() {
             zone.addEventListener('dragover', (e) => {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'move';
-                
+
                 if (draggedElement) {
                     // Clear all active zones
                     document.querySelectorAll('.drop-zone-active').forEach(z => {
@@ -376,7 +375,7 @@ function setupDragAndDrop() {
                             item.style.cursor = 'not-allowed';
                         }
                     });
-                    
+
                     zone.classList.add('drop-zone-active');
                 }
             });
@@ -393,10 +392,10 @@ function setupDragAndDrop() {
                 if (draggedElement) {
                     const position = parseInt(zone.dataset.position);
                     const container = zone.parentNode;
-                    
+
                     // Get all current goal items (excluding the dragged one)
                     const currentItems = Array.from(container.querySelectorAll('.goal-item')).filter(item => item !== draggedElement);
-                    
+
                     // Insert at the correct position
                     if (position === 0) {
                         container.insertBefore(draggedElement, container.firstChild);
@@ -405,7 +404,7 @@ function setupDragAndDrop() {
                     } else {
                         container.insertBefore(draggedElement, currentItems[position]);
                     }
-                    
+
                     // Clean up
                     cleanupDragState();
                     // Recreate drop zones with new positions
@@ -434,13 +433,13 @@ function setupDragAndDrop() {
 
     goalItems.forEach(item => {
         const dragHandle = item.querySelector('.drag-handle');
-        
+
         if (dragHandle) {
             dragHandle.addEventListener('dragstart', (e) => {
                 draggedElement = item;
                 item.classList.add('dragging');
                 e.dataTransfer.effectAllowed = 'move';
-                
+
                 // Show drop zones
                 document.querySelectorAll('.drop-zone').forEach(zone => {
                     zone.style.display = 'block';
@@ -501,7 +500,7 @@ function createSortingControl() {
 function changeSortOrder(newOrder) {
     ingredientSortOrder = newOrder;
     saveIngredientSortOrder();
-    
+
     // Re-render ingredients with new sort order
     const allIngredients = document.getElementById('allIngredients');
     if (allIngredients && window.currentIngredients) {
@@ -517,7 +516,7 @@ function displayIngredientsList(ingredients) {
     if (ingredients && ingredients.length > 0) {
         // Sort ingredients based on current sort order
         const sortedIngredients = sortIngredients([...ingredients], ingredientSortOrder);
-        
+
         sortedIngredients.forEach(ingredient => {
             const healthScore = ingredient.health_score || 5;
             const healthClass = healthScore >= 7 ? 'healthy' : healthScore >= 5 ? 'neutral' : 'unhealthy';
@@ -813,7 +812,7 @@ async function analyzeRecipe() {
     } catch (error) {
         console.error("Analysis Error:", error);
         let errorMessage = "";
-        
+
         if (error && typeof error === 'object') {
             errorMessage = error.message || error.detail || "Onbekende fout";
         } else if (typeof error === 'string') {
@@ -857,7 +856,7 @@ async function analyzeRecipe() {
         } else {
             userMessage = "Er is een onverwachte fout opgetreden. Probeer het later opnieuw.";
         }
-        
+
         console.error("Analysis Error:", error);
         showError(userMessage, errorTitle);
     } finally {
@@ -976,7 +975,7 @@ function displayResults(data) {
     const nutritionTitle = document.querySelector('.nutrition-summary h3');
     if (nutritionTitle) {
         nutritionTitle.innerHTML = `${t('nutrition_per_portion')} ${createPortionsControl()}`;
-        
+
         // Make sure the slider reflects the current saved value
         setTimeout(() => {
             const slider = document.getElementById('portions-slider');
@@ -1305,11 +1304,11 @@ window.addEventListener("load", async () => {
         await loadConfiguration();
         await loadHealthTips();
         await loadIcons();
-        
+
         // Load saved preferences
         ingredientSortOrder = localStorage.getItem('ingredientSortOrder') || 'alphabet';
         loadSavedPortions();
-        
+
         console.log('Initialized with saved portions:', currentPortions);
     } catch (error) {
         console.error("Initialization error:", error);
