@@ -1395,8 +1395,8 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
     # Parse quantity and unit
     quantity, unit, clean_ingredient = parse_ingredient_components(ingredient_text)
 
-    # Get nutrition data from API
-    nutrition_data = get_ingredient_nutrition(clean_ingredient, quantity, unit)
+    # Get nutrition data from multiple sources
+    nutrition_data = get_enhanced_nutrition_data(clean_ingredient, quantity, unit)
 
     # Simple health scoring based on keywords
     healthy_keywords = ['groente', 'fruit', 'volkoren', 'noten', 'vis', 'olijfolie', 'avocado', 'asperges', 'sperziebonen', 'spinazie', 'peterselie', 'radijs', 'nectarine', 'granaatappel']
@@ -1438,69 +1438,122 @@ def analyze_ingredient(ingredient_text: str) -> Dict[str, Any]:
         'nutrition': nutrition_data
     }
 
-def get_ingredient_nutrition(ingredient_name: str, quantity: Optional[float] = None, unit: Optional[str] = None) -> Dict[str, Any]:
-    """Get nutrition data for an ingredient using FoodData Central API."""
+def get_enhanced_nutrition_data(ingredient_name: str, quantity: Optional[float] = None, unit: Optional[str] = None) -> Dict[str, Any]:
+    """Get nutrition data using multiple sources with fallbacks."""
+    
+    # Try Open Food Facts first (works better for European products)
+    nutrition_data = get_nutrition_from_openfoodfacts_api(ingredient_name)
+    
+    # If that fails, try USDA API
+    if not nutrition_data or all(v == 0 for v in nutrition_data.values()):
+        nutrition_data = get_ingredient_nutrition_usda(ingredient_name)
+    
+    # If both fail, use basic estimations
+    if not nutrition_data or all(v == 0 for v in nutrition_data.values()):
+        nutrition_data = get_basic_nutrition_estimates(ingredient_name)
+    
+    # Apply quantity multiplier if available
+    if nutrition_data and quantity and unit:
+        multiplier = calculate_nutrition_multiplier(quantity, unit)
+        for key in nutrition_data:
+            if isinstance(nutrition_data[key], (int, float)):
+                nutrition_data[key] = round(nutrition_data[key] * multiplier, 1)
+    
+    return nutrition_data
+
+def get_nutrition_from_openfoodfacts_api(ingredient_name: str) -> Dict[str, Any]:
+    """Get nutrition data from Open Food Facts API (better for European foods)."""
     try:
-        # Clean ingredient name for API search
+        # Clean ingredient name for search
         clean_name = ingredient_name.lower().strip()
         
-        # Translate Dutch to English for better API results
+        # Try both Dutch and English names
+        search_terms = [clean_name]
+        
+        # Add English translation
         dutch_to_english = {
-            'ui': 'onion',
-            'uien': 'onions',
-            'knoflook': 'garlic',
-            'tomaat': 'tomato',
-            'tomaten': 'tomatoes',
-            'wortel': 'carrot',
-            'wortels': 'carrots',
-            'aardappel': 'potato',
-            'aardappels': 'potatoes',
-            'kip': 'chicken',
-            'rundvlees': 'beef',
-            'gehakt': 'ground beef',
-            'vis': 'fish',
-            'zalm': 'salmon',
-            'spinazie': 'spinach',
-            'sla': 'lettuce',
-            'paprika': 'bell pepper',
-            'komkommer': 'cucumber',
-            'champignons': 'mushrooms',
-            'champignon': 'mushroom',
-            'broccoli': 'broccoli',
-            'bloemkool': 'cauliflower',
-            'rijst': 'rice',
-            'pasta': 'pasta',
-            'bloem': 'flour',
-            'suiker': 'sugar',
-            'boter': 'butter',
-            'melk': 'milk',
-            'eieren': 'eggs',
-            'ei': 'egg',
-            'kaas': 'cheese',
-            'olijfolie': 'olive oil',
-            'olie': 'oil',
-            'zout': 'salt',
-            'peper': 'pepper',
-            'peterselie': 'parsley',
-            'basilicum': 'basil',
-            'oregano': 'oregano',
-            'tijm': 'thyme',
-            'rozemarijn': 'rosemary'
+            'ui': 'onion', 'uien': 'onions', 'knoflook': 'garlic',
+            'tomaat': 'tomato', 'tomaten': 'tomatoes', 'wortel': 'carrot',
+            'aardappel': 'potato', 'kip': 'chicken', 'rundvlees': 'beef',
+            'gehakt': 'ground beef', 'vis': 'fish', 'spinazie': 'spinach',
+            'paprika': 'bell pepper', 'komkommer': 'cucumber', 'rijst': 'rice',
+            'pasta': 'pasta', 'bloem': 'flour', 'suiker': 'sugar',
+            'boter': 'butter', 'melk': 'milk', 'kaas': 'cheese',
+            'olijfolie': 'olive oil', 'peterselie': 'parsley', 'koriander': 'coriander',
+            'basterdsuiker': 'brown sugar', 'burrata': 'burrata cheese'
         }
         
-        # Try to find English translation
+        english_name = dutch_to_english.get(clean_name, clean_name)
+        if english_name != clean_name:
+            search_terms.append(english_name)
+        
+        for search_term in search_terms:
+            search_url = f"https://world.openfoodfacts.org/cgi/search.pl"
+            params = {
+                'search_terms': search_term,
+                'search_simple': 1,
+                'action': 'process',
+                'json': 1,
+                'page_size': 1
+            }
+            
+            response = requests.get(search_url, params=params, timeout=8)
+            if response.status_code == 200:
+                data = response.json()
+                
+                if data.get('products') and len(data['products']) > 0:
+                    product = data['products'][0]
+                    nutriments = product.get('nutriments', {})
+                    
+                    nutrition = {
+                        'calories': nutriments.get('energy-kcal_100g', 0),
+                        'protein': nutriments.get('proteins_100g', 0),
+                        'carbs': nutriments.get('carbohydrates_100g', 0),
+                        'fat': nutriments.get('fat_100g', 0),
+                        'fiber': nutriments.get('fiber_100g', 0),
+                        'sodium': nutriments.get('sodium_100g', 0),
+                        'sugar': nutriments.get('sugars_100g', 0)
+                    }
+                    
+                    # Check if we got meaningful data
+                    if any(v > 0 for v in nutrition.values()):
+                        logger.debug(f"Found nutrition data via Open Food Facts for {ingredient_name}")
+                        return nutrition
+        
+        return {}
+        
+    except Exception as e:
+        logger.debug(f"Open Food Facts API error for {ingredient_name}: {e}")
+        return {}
+
+def get_ingredient_nutrition_usda(ingredient_name: str) -> Dict[str, Any]:
+    """Get nutrition data using USDA FoodData Central API."""
+    try:
+        clean_name = ingredient_name.lower().strip()
+        
+        # Translate Dutch to English for USDA API
+        dutch_to_english = {
+            'ui': 'onion', 'uien': 'onions', 'knoflook': 'garlic',
+            'tomaat': 'tomato', 'tomaten': 'tomatoes', 'wortel': 'carrot',
+            'aardappel': 'potato', 'kip': 'chicken', 'rundvlees': 'beef',
+            'gehakt': 'ground beef', 'vis': 'fish', 'spinazie': 'spinach',
+            'paprika': 'bell pepper', 'komkommer': 'cucumber', 'rijst': 'rice',
+            'pasta': 'pasta', 'bloem': 'flour', 'suiker': 'sugar',
+            'boter': 'butter', 'melk': 'milk', 'kaas': 'cheese',
+            'olijfolie': 'olive oil', 'peterselie': 'parsley'
+        }
+        
         english_name = dutch_to_english.get(clean_name, clean_name)
         
-        # Use USDA FoodData Central API (free, no key required for basic search)
         search_url = f"https://api.nal.usda.gov/fdc/v1/foods/search"
         params = {
             'query': english_name,
             'dataType': ['Foundation', 'SR Legacy'],
             'pageSize': 1,
-            'api_key': 'DEMO_KEY'  # Demo key, limited but works for basic testing
+            'api_key': 'DEMO_KEY'
         }
         
-        response = requests.get(search_url, params=params, timeout=5)
+        response = requests.get(search_url, params=params, timeout=8)
         
         if response.status_code == 200:
             data = response.json()
@@ -1509,7 +1562,6 @@ def get_ingredient_nutrition(ingredient_name: str, quantity: Optional[float] = N
                 food = data['foods'][0]
                 food_nutrients = food.get('foodNutrients', [])
                 
-                # Extract key nutrients (per 100g)
                 nutrition = {
                     'calories': 0,
                     'protein': 0,
@@ -1520,7 +1572,6 @@ def get_ingredient_nutrition(ingredient_name: str, quantity: Optional[float] = N
                     'sugar': 0
                 }
                 
-                # Map nutrient IDs to our nutrition keys
                 nutrient_map = {
                     1008: 'calories',  # Energy (kcal)
                     1003: 'protein',   # Protein
@@ -1537,24 +1588,73 @@ def get_ingredient_nutrition(ingredient_name: str, quantity: Optional[float] = N
                         value = nutrient.get('value', 0)
                         nutrition[nutrient_map[nutrient_id]] = round(value, 1)
                 
-                # If we have quantity information, calculate actual amounts
-                if quantity and unit:
-                    multiplier = calculate_nutrition_multiplier(quantity, unit)
-                    for key in nutrition:
-                        nutrition[key] = round(nutrition[key] * multiplier, 1)
-                
-                return nutrition
+                if any(v > 0 for v in nutrition.values()):
+                    logger.debug(f"Found nutrition data via USDA for {ingredient_name}")
+                    return nutrition
                 
     except Exception as e:
-        logger.debug(f"Failed to get nutrition data for {ingredient_name}: {e}")
+        logger.debug(f"USDA API error for {ingredient_name}: {e}")
     
-    # Return empty nutrition data if API fails
+    return {}
+
+def get_basic_nutrition_estimates(ingredient_name: str) -> Dict[str, Any]:
+    """Provide basic nutrition estimates for common ingredients when APIs fail."""
+    clean_name = ingredient_name.lower().strip()
+    
+    # Basic nutrition estimates per 100g for common ingredients
+    nutrition_estimates = {
+        # Vegetables
+        'ui': {'calories': 40, 'protein': 1.1, 'carbs': 9.3, 'fat': 0.1, 'fiber': 1.7},
+        'uien': {'calories': 40, 'protein': 1.1, 'carbs': 9.3, 'fat': 0.1, 'fiber': 1.7},
+        'knoflook': {'calories': 149, 'protein': 6.4, 'carbs': 33, 'fat': 0.5, 'fiber': 2.1},
+        'tomaat': {'calories': 18, 'protein': 0.9, 'carbs': 3.9, 'fat': 0.2, 'fiber': 1.2},
+        'tomaten': {'calories': 18, 'protein': 0.9, 'carbs': 3.9, 'fat': 0.2, 'fiber': 1.2},
+        'wortel': {'calories': 41, 'protein': 0.9, 'carbs': 9.6, 'fat': 0.2, 'fiber': 2.8},
+        'paprika': {'calories': 31, 'protein': 1, 'carbs': 7, 'fat': 0.3, 'fiber': 2.5},
+        'spinazie': {'calories': 23, 'protein': 2.9, 'carbs': 3.6, 'fat': 0.4, 'fiber': 2.2},
+        'peterselie': {'calories': 36, 'protein': 3, 'carbs': 6.3, 'fat': 0.8, 'fiber': 3.3},
+        'koriander': {'calories': 23, 'protein': 2.1, 'carbs': 3.7, 'fat': 0.5, 'fiber': 2.8},
+        
+        # Proteins
+        'kip': {'calories': 165, 'protein': 31, 'carbs': 0, 'fat': 3.6, 'fiber': 0},
+        'gehakt': {'calories': 250, 'protein': 26, 'carbs': 0, 'fat': 15, 'fiber': 0},
+        'burrata': {'calories': 330, 'protein': 17, 'carbs': 3, 'fat': 28, 'fiber': 0},
+        
+        # Oils and fats
+        'olijfolie': {'calories': 884, 'protein': 0, 'carbs': 0, 'fat': 100, 'fiber': 0},
+        'boter': {'calories': 717, 'protein': 0.9, 'carbs': 0.1, 'fat': 81, 'fiber': 0},
+        
+        # Sugars
+        'suiker': {'calories': 387, 'protein': 0, 'carbs': 100, 'fat': 0, 'fiber': 0},
+        'basterdsuiker': {'calories': 380, 'protein': 0, 'carbs': 98, 'fat': 0, 'fiber': 0},
+        
+        # Grains
+        'rijst': {'calories': 130, 'protein': 2.7, 'carbs': 28, 'fat': 0.3, 'fiber': 0.4},
+        'pasta': {'calories': 131, 'protein': 5, 'carbs': 25, 'fat': 1.1, 'fiber': 1.8},
+    }
+    
+    # Try to find exact match first
+    if clean_name in nutrition_estimates:
+        base_nutrition = nutrition_estimates[clean_name].copy()
+        base_nutrition.update({'sodium': 0, 'sugar': 0})  # Add missing keys
+        logger.debug(f"Using nutrition estimates for {ingredient_name}")
+        return base_nutrition
+    
+    # Try partial matches
+    for key, nutrition in nutrition_estimates.items():
+        if key in clean_name or clean_name in key:
+            base_nutrition = nutrition.copy()
+            base_nutrition.update({'sodium': 0, 'sugar': 0})
+            logger.debug(f"Using partial match nutrition estimates for {ingredient_name}")
+            return base_nutrition
+    
+    # Default values if no match
     return {
-        'calories': 0,
-        'protein': 0,
-        'carbs': 0,
-        'fat': 0,
-        'fiber': 0,
+        'calories': 50,
+        'protein': 2,
+        'carbs': 10,
+        'fat': 1,
+        'fiber': 1,
         'sodium': 0,
         'sugar': 0
     }
@@ -1692,63 +1792,121 @@ def generate_health_explanation(ingredients: List[Dict], health_scores: Dict) ->
     if healthy_ingredients:
         healthy_names = [ing.get('name', 'Onbekend') for ing in healthy_ingredients[:3]]
         try:
-            healthy_explanation = get_openai_ingredient_explanation(healthy_names, True, health_scores)
-            explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {healthy_explanation}")
+            # Filter out hidden goals for active goals context
+            active_goals = {k: v for k, v in health_scores.items() if v > 3}  # Only include goals with decent scores
+            healthy_explanation = get_openai_ingredient_explanation(healthy_names, True, active_goals)
+            explanations.append(f"✅ {healthy_explanation}")
+            logger.info(f"OpenAI healthy explanation generated successfully for {len(healthy_names)} ingredients")
         except Exception as e:
             logger.warning(f"OpenAI explanation failed for healthy ingredients: {e}")
-            explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {', '.join(healthy_names)}")
+            explanations.append(f"✅ Gezonde ingrediënten (score 7-10): {', '.join(healthy_names)} - Deze ingrediënten zijn rijk aan vitamines, mineralen en andere gezonde voedingsstoffen.")
 
     # Get OpenAI explanations for unhealthy ingredients
     if unhealthy_ingredients:
         unhealthy_names = [ing.get('name', 'Onbekend') for ing in unhealthy_ingredients[:3]]
         try:
-            unhealthy_explanation = get_openai_ingredient_explanation(unhealthy_names, False, health_scores)
-            explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {unhealthy_explanation}")
+            # Filter out hidden goals for active goals context
+            active_goals = {k: v for k, v in health_scores.items() if v > 3}
+            unhealthy_explanation = get_openai_ingredient_explanation(unhealthy_names, False, active_goals)
+            explanations.append(f"❌ {unhealthy_explanation}")
+            logger.info(f"OpenAI unhealthy explanation generated successfully for {len(unhealthy_names)} ingredients")
         except Exception as e:
             logger.warning(f"OpenAI explanation failed for unhealthy ingredients: {e}")
-            explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join(unhealthy_names)}")
+            explanations.append(f"❌ Minder gezonde ingrediënten (score 1-3): {', '.join(unhealthy_names)} - Deze ingrediënten bevatten veel suiker, verzadigde vetten of geraffineerde koolhydraten. Gebruik ze in beperkte hoeveelheden.")
 
     return explanations
 
 def get_openai_ingredient_explanation(ingredient_names: List[str], is_healthy: bool, active_health_goals: Dict[str, int]) -> str:
     """Get OpenAI explanation for why ingredients are healthy or unhealthy."""
-    import openai
     import os
     
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    if not openai.api_key:
-        raise Exception("OpenAI API key not found")
+    # Check for OpenAI API key
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        logger.warning("OpenAI API key not found in environment")
+        raise Exception("OpenAI API key niet gevonden - stel OPENAI_API_KEY in bij Secrets")
 
-    # Filter out hidden goals (assuming goals with very low scores are hidden)
-    visible_goals = [goal for goal, score in active_health_goals.items() if score > 0]
+    # Filter out hidden goals and translate keys
+    visible_goals = []
+    goal_translations = {
+        "Algemene gezondheid": "algemene gezondheid",
+        "Hart- en vaatziekten": "hart- en vaatziekten", 
+        "Diabetes preventie": "diabetes preventie",
+        "Gewichtsbeheersing": "gewichtsbeheersing",
+        "Spijsvertering": "spijsvertering",
+        "Immuunsysteem": "immuunsysteem",
+        "Botgezondheid": "botgezondheid",
+        "Energieniveau": "energieniveau",
+        "Huidgezondheid": "huidgezondheid",
+        "Hersengezondheid": "hersengezondheid",
+        "weight_loss": "gewichtsverlies",
+        "muscle_gain": "spieropbouw",
+        "heart_health": "hartgezondheid",
+        "energy_boost": "energie boost"
+    }
+    
+    for goal, score in active_health_goals.items():
+        if score > 3:  # Only include goals with decent scores
+            translated_goal = goal_translations.get(goal, goal.replace('_', ' '))
+            visible_goals.append(translated_goal)
     
     ingredients_text = ", ".join(ingredient_names)
-    health_status = "gezond" if is_healthy else "ongezond"
+    health_status = "gezond" if is_healthy else "minder gezond"
     goals_context = f"Relevante gezondheidsdoelen: {', '.join(visible_goals[:5])}" if visible_goals else ""
     
-    prompt = f"""Leg kort uit waarom de volgende ingrediënten als {health_status} worden beschouwd in een recept: {ingredients_text}
+    if is_healthy:
+        prompt = f"""Leg in 1-2 zinnen uit waarom deze ingrediënten gezond zijn: {ingredients_text}
 
 {goals_context}
 
-Geef een korte, informatieve uitleg (max 2 zinnen) over de voedingswaarde en gezondheidseffecten. Vermeld specifieke vitamines, mineralen of andere voedingsstoffen waar relevant. Antwoord in het Nederlands."""
+Focus op voedingsstoffen, vitamines en gezondheidsvoordelen. Antwoord in het Nederlands."""
+    else:
+        prompt = f"""Leg in 1-2 zinnen uit waarom deze ingrediënten minder gezond zijn: {ingredients_text}
+
+{goals_context}
+
+Focus op waarom ze minder gezond zijn (suiker, verzadigde vetten, etc.) en geef een kort advies. Antwoord in het Nederlands."""
 
     try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "Je bent een voedingsdeskundige die korte, accurate uitleg geeft over ingrediënten."},
+        import requests
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "Je bent een voedingsdeskundige die korte, accurate uitleg geeft over ingrediënten in recepten."},
                 {"role": "user", "content": prompt}
             ],
-            max_tokens=150,
-            temperature=0.3
+            "max_tokens": 120,
+            "temperature": 0.3
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=15
         )
         
-        explanation = response.choices[0].message.content.strip()
-        return f"{ingredients_text} - {explanation}"
+        if response.status_code == 200:
+            result = response.json()
+            explanation = result['choices'][0]['message']['content'].strip()
+            
+            # Format the response properly
+            status_prefix = "Gezonde ingrediënten (score 7-10)" if is_healthy else "Minder gezonde ingrediënten (score 1-3)"
+            return f"{status_prefix}: {ingredients_text} - {explanation}"
+        else:
+            logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
+            raise Exception(f"OpenAI API fout: HTTP {response.status_code}")
         
     except Exception as e:
         logger.error(f"OpenAI API call failed: {e}")
-        raise
+        # Re-raise to be handled by calling function
+        raise Exception(f"OpenAI API aanroep mislukt: {str(e)}")
 
 def generate_healthier_swaps(ingredients: List[Dict]) -> List[Dict]:
     """Generate healthier ingredient swaps."""
@@ -2131,8 +2289,29 @@ def generate_health_score_explanation(health_score, total_nutrition, all_ingredi
         healthy_ingredients = len([i for i in all_ingredients if i.get('health_score', 0) >= 7])
         total_ingredients = len(all_ingredients)
 
-        # Get top health goal scores
+        # Get top health goal scores and translate keys to Dutch
+        health_goals_translations = {
+            "Algemene gezondheid": "Algemene gezondheid",
+            "Hart- en vaatziekten": "Hart- en vaatziekten", 
+            "Diabetes preventie": "Diabetes preventie",
+            "Gewichtsbeheersing": "Gewichtsbeheersing",
+            "Spijsvertering": "Spijsvertering",
+            "Immuunsysteem": "Immuunsysteem",
+            "Botgezondheid": "Botgezondheid",
+            "Energieniveau": "Energieniveau",
+            "Huidgezondheid": "Huidgezondheid",
+            "Hersengezondheid": "Hersengezondheid",
+            "weight_loss": "Gewichtsverlies",
+            "muscle_gain": "Spieropbouw",
+            "heart_health": "Hartgezondheid",
+            "energy_boost": "Energie boost"
+        }
+        
         top_goals = sorted(health_goals_scores.items(), key=lambda x: x[1], reverse=True)[:3]
+        translated_goals = []
+        for goal_key, score in top_goals:
+            translated_name = health_goals_translations.get(goal_key, goal_key)
+            translated_goals.append((translated_name, score))
 
         explanation = f"""De gezondheidsscore van {health_score}/10 is berekend op basis van een uitgebreide analyse van alle ingrediënten en hun voedingswaarden. 
 
@@ -2140,7 +2319,7 @@ Per portie bevat dit recept ongeveer {calories} calorieën, {protein}g eiwitten,
 
 De dagelijkse hoeveelheid voedingsstoffen werd vergeleken met aanbevolen dagelijkse waarden, waarbij rekening werd gehouden met de hoeveelheid vezels (goed voor spijsvertering), het type vetten (verzadigd vs onverzadigd), en de aanwezigheid van vitamines en mineralen. 
 
-De hoogste scores werden behaald voor {top_goals[0][0]} ({top_goals[0][1]}/10), {top_goals[1][0]} ({top_goals[1][1]}/10) en {top_goals[2][0]} ({top_goals[2][1]}/10). Deze score geeft een indicatie van hoe goed dit recept past binnen een gezond voedingspatroon."""
+De hoogste scores werden behaald voor {translated_goals[0][0]} ({translated_goals[0][1]}/10), {translated_goals[1][0]} ({translated_goals[1][1]}/10) en {translated_goals[2][0]} ({translated_goals[2][1]}/10). Deze score geeft een indicatie van hoe goed dit recept past binnen een gezond voedingspatroon."""
 
         return explanation.strip()
 
