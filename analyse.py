@@ -95,8 +95,13 @@ def smart_ingredient_scraping(url: str) -> Tuple[List[str], str]:
                 logger.warning(f"Method {method_name} found insufficient ingredients: {len(ingredients) if ingredients else 0}")
 
         except Exception as e:
-            logger.warning(f"Method {method_name} failed: {e}")
             debug.log_scraping_attempt(url, method_name, False, 0)
+            logger.warning(f"Method {method_name} failed: {e}")
+
+            # For AH URLs, provide more specific debugging
+            if 'ah.nl' in url.lower() and method_name == 'ah_specific':
+                logger.info("AH advanced method failed, check debug/ folder for detailed logs")
+
             continue
 
     raise Exception("Geen ingrediënten gevonden met alle beschikbare methoden")
@@ -125,7 +130,7 @@ def scrape_with_requests_json_ld(url: str) -> Tuple[List[str], str]:
     # Try multiple request approaches for AH.nl
     session = requests.Session()
     session.headers.update(headers)
-    
+
     response = session.get(url, timeout=15, allow_redirects=True)
     debug.log_response(response, time.time() - start_time)
 
@@ -245,24 +250,24 @@ def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
         'Sec-Fetch-User': '?1',
         'Upgrade-Insecure-Requests': '1'
     }
-    
+
     session = requests.Session()
     session.headers.update(headers)
-    
+
     # Add delay to appear more human-like
     time.sleep(1)
-    
+
     try:
         response = session.get(url, timeout=20, allow_redirects=True)
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
-        
+
         # Save debug HTML for AH
         debug.save_debug_html(str(soup), url, "ah_specific")
-        
+
         ingredients = []
         title = "AH Recept"
-        
+
         # Try to get title first
         title_selectors = [
             'h1[data-testid="recipe-title"]',
@@ -271,13 +276,13 @@ def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
             'h1',
             '[data-testid="recipe-name"]'
         ]
-        
+
         for selector in title_selectors:
             title_elem = soup.select_one(selector)
             if title_elem:
                 title = title_elem.get_text().strip()
                 break
-        
+
         # AH-specific ingredient selectors with multiple strategies
         ah_selectors = [
             '[data-testid="ingredient"]',
@@ -294,12 +299,12 @@ def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
             '.recipe-content ul li',
             '.ingredients ul li'
         ]
-        
+
         for selector in ah_selectors:
             try:
                 elements = soup.select(selector)
                 logger.debug(f"AH selector '{selector}' found {len(elements)} elements")
-                
+
                 if elements:
                     temp_ingredients = []
                     for element in elements:
@@ -309,42 +314,42 @@ def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
                             text = text.replace('\n', ' ').replace('\t', ' ')
                             text = ' '.join(text.split())  # Remove extra whitespace
                             temp_ingredients.append(text)
-                    
+
                     if len(temp_ingredients) >= 3:
                         ingredients = temp_ingredients
                         logger.info(f"AH scraping successful with selector '{selector}': {len(ingredients)} ingredients")
                         break
-                        
+
             except Exception as e:
                 logger.debug(f"AH selector '{selector}' failed: {e}")
                 continue
-        
+
         # If still no ingredients found, try text-based extraction from page content
         if not ingredients:
             logger.info("Trying text-based extraction for AH recipe")
             page_text = soup.get_text()
-            
+
             # Look for ingredient patterns in the full text
             lines = page_text.split('\n')
             potential_ingredients = []
-            
+
             for line in lines:
                 line = line.strip()
                 if not line or len(line) < 3:
                     continue
-                    
+
                 # Look for lines that contain measurements (likely ingredients)
                 if re.search(r'\d+\s*(gram|g|kg|ml|l|el|tl|stuks?|blik|pak)', line, re.IGNORECASE):
                     potential_ingredients.append(line)
-            
+
             if len(potential_ingredients) >= 3:
                 ingredients = potential_ingredients[:15]  # Limit to reasonable amount
-        
+
         if not ingredients:
             raise Exception("Geen ingrediënten gevonden met AH-specifieke methode")
-            
+
         return ingredients, title
-        
+
     except requests.exceptions.RequestException as e:
         raise Exception(f"AH scraping request failed: {e}")
 

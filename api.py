@@ -352,6 +352,62 @@ async def supported_sites():
         ]
     }
 
+@app.get("/debug-scraping")
+async def debug_scraping(url: str):
+    """Debug endpoint to test scraping strategies"""
+    try:
+        from debug_helper import debug_ah_scraping
+        from analyse import scrape_ah_advanced, smart_ingredient_scraping
+        
+        results = {}
+        
+        # Test debug analysis
+        try:
+            debug_results = debug_ah_scraping(url)
+            results['debug_analysis'] = {
+                'success': True,
+                'ingredients_found': len(debug_results) if debug_results else 0,
+                'sample_ingredients': debug_results[:5] if debug_results else []
+            }
+        except Exception as e:
+            results['debug_analysis'] = {'success': False, 'error': str(e)}
+        
+        # Test advanced scraping
+        try:
+            ingredients, title = scrape_ah_advanced(url)
+            results['advanced_scraping'] = {
+                'success': True,
+                'ingredients_count': len(ingredients),
+                'title': title,
+                'sample_ingredients': ingredients[:5]
+            }
+        except Exception as e:
+            results['advanced_scraping'] = {'success': False, 'error': str(e)}
+        
+        # Test smart scraping
+        try:
+            ingredients, title = smart_ingredient_scraping(url)
+            results['smart_scraping'] = {
+                'success': True,
+                'ingredients_count': len(ingredients),
+                'title': title,
+                'sample_ingredients': ingredients[:5]
+            }
+        except Exception as e:
+            results['smart_scraping'] = {'success': False, 'error': str(e)}
+        
+        return {
+            'url': url,
+            'debug_results': results,
+            'timestamp': time.time()
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Debug failed: {str(e)}"
+        )
+
 @app.get("/learned-patterns")
 async def learned_patterns():
     """Toon geleerde website patronen"""

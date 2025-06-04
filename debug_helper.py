@@ -7,6 +7,137 @@ from urllib.parse import urlparse
 import os
 from bs4 import BeautifulSoup
 
+# Setup logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
+def debug_ah_scraping(url: str):
+    """Debug AH website scraping step by step"""
+    logger.info(f"=== DEBUG AH SCRAPING START for {url} ===")
+    
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Upgrade-Insecure-Requests': '1'
+    }
+    
+    try:
+        session = requests.Session()
+        session.headers.update(headers)
+        
+        logger.info("Step 1: Making request...")
+        response = session.get(url, timeout=20, allow_redirects=True)
+        logger.info(f"Response status: {response.status_code}")
+        logger.info(f"Response headers: {dict(response.headers)}")
+        logger.info(f"Final URL after redirects: {response.url}")
+        
+        if response.status_code != 200:
+            logger.error(f"Bad status code: {response.status_code}")
+            return None
+            
+        logger.info("Step 2: Parsing HTML...")
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Save full HTML for debugging
+        with open("debug/ah_debug.html", "w", encoding="utf-8") as f:
+            f.write(str(soup.prettify()))
+        logger.info("HTML saved to debug/ah_debug.html")
+        
+        logger.info("Step 3: Looking for JSON-LD...")
+        json_scripts = soup.find_all('script', type='application/ld+json')
+        logger.info(f"Found {len(json_scripts)} JSON-LD scripts")
+        
+        for i, script in enumerate(json_scripts):
+            try:
+                data = json.loads(script.string)
+                logger.info(f"JSON-LD {i}: {json.dumps(data, indent=2)[:500]}...")
+                with open(f"debug/ah_json_ld_{i}.json", "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+            except:
+                logger.warning(f"Could not parse JSON-LD {i}")
+        
+        logger.info("Step 4: Looking for ingredient selectors...")
+        selectors_to_try = [
+            '[data-testid="ingredient"]',
+            '.ingredient',
+            '.recipe-ingredient', 
+            '.ingredients li',
+            '[data-ingredient]',
+            '.ingredient-item',
+            '.recipe-ingredients-list li',
+            'ul[data-testid="ingredients"] li',
+            '.ingredients-section li',
+            # More AH specific selectors
+            '.recipe-ingredients .ingredient',
+            '[data-qa="ingredient"]',
+            '.ah-ingredient',
+            '.allerhande-ingredient',
+            '.ingredient-list-item'
+        ]
+        
+        for selector in selectors_to_try:
+            elements = soup.select(selector)
+            logger.info(f"Selector '{selector}': {len(elements)} elements")
+            if elements:
+                for j, elem in enumerate(elements[:5]):  # Show first 5
+                    logger.info(f"  Element {j}: {elem.get_text().strip()[:100]}")
+        
+        logger.info("Step 5: Looking for all text that might be ingredients...")
+        # Look for patterns that might be ingredients
+        all_text = soup.get_text()
+        lines = [line.strip() for line in all_text.split('\n') if line.strip()]
+        
+        potential_ingredients = []
+        for line in lines:
+            # Look for lines that might be ingredients (contain measurements, food words)
+            if any(word in line.lower() for word in ['gram', 'kg', 'ml', 'liter', 'el', 'tl', 'snuf', 'stuk']):
+                potential_ingredients.append(line)
+        
+        logger.info(f"Found {len(potential_ingredients)} potential ingredient lines:")
+        for ing in potential_ingredients[:10]:  # Show first 10
+            logger.info(f"  Potential: {ing}")
+            
+        with open("debug/ah_potential_ingredients.txt", "w", encoding="utf-8") as f:
+            f.write('\n'.join(potential_ingredients))
+        
+        return potential_ingredients
+        
+    except Exception as e:
+        logger.error(f"Debug failed: {e}")
+        return None
+
+def log_request(url: str, method: str = "GET"):
+    """Log API request"""
+    logger.info(f"API Request: {method} {url}")
+
+def log_scraping_attempt(url: str, method: str, success: bool, ingredient_count: int = 0):
+    """Log scraping attempt results"""
+    status = "SUCCESS" if success else "FAILED"
+    logger.info(f"Scraping {status}: {method} on {url} - {ingredient_count} ingredients")
+
+def log_selenium_action(action: str, details: str):
+    """Log Selenium actions"""
+    logger.info(f"Selenium {action}: {details}")
+
+def save_debug_html(html_content: str, url: str, method: str):
+    """Save HTML content for debugging"""
+    try:
+        os.makedirs("debug", exist_ok=True)
+        filename = f"debug/{method}_{int(time.time())}.html"
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write(html_content)
+        logger.info(f"Debug HTML saved: {filename}")
+    except Exception as e:
+        logger.error(f"Could not save debug HTML: {e}")
+
 class DebugHelper:
     """
     Helper class for debugging recipe scraping and analysis.
