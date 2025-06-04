@@ -1,3 +1,4 @@
+
 // Language support
 let currentLanguage = 'nl';
 let translations = {};
@@ -698,28 +699,6 @@ async function analyzeRecipe() {
         console.error("Analysis Error:", error);
         showError(userMessage, errorTitle);
     } finally {
-        hideLoader();
-    }
-}
-
-// Add missing utility functions
-function showLoader() {
-    const loader = document.getElementById('loader');
-    if (loader) {
-        loader.style.display = 'block';
-    }
-}
-
-function hideLoader() {
-    const loader = document.getElementById('loader');
-    if (loader) {
-        loader.style.display = 'none';
-    }
-}r het opnieuw.";
-        }
-
-        showError(userMessage, errorTitle);
-    } finally {
         // Reset UI
         const analyzeBtn = getAnalyzeBtn();
         const btnText = getBtnText();
@@ -1150,8 +1129,7 @@ document.addEventListener("keydown", (e) => {
         analyzeRecipe();
     }
 
-    // Escape om error // Close error with Escape key
-document.addEventListener("keydown", (e) => {
+    // Escape om error te sluiten
     if (e.key === "Escape") {
         hideError();
     }
@@ -1174,96 +1152,5 @@ window.addEventListener("load", async () => {
     } catch (error) {
         console.error("Initialization error:", error);
         showError("Er is een fout opgetreden bij het laden van de applicatie.", "Initialisatiefout");
-    }
-});
-
-// Error handling for missing functions
-function showError(message, title = "Fout") {
-    const errorContainer = document.getElementById('errorContainer');
-    if (errorContainer) {
-        errorContainer.innerHTML = `
-            <div class="error-message">
-                <h3>${title}</h3>
-                <p>${message}</p>
-                <button onclick="hideError()">Sluiten</button>
-            </div>
-        `;
-        errorContainer.style.display = 'block';
-    } else {
-        alert(`${title}: ${message}`);
-    }
-}
-
-function hideError() {
-    const errorContainer = document.getElementById('errorContainer');
-    if (errorContainer) {
-        errorContainer.style.display = 'none';
-    }
-}
-
-// Add missing functions to prevent errors
-function loadLanguage() {
-    return fetch('/static/lang.json')
-        .then(response => response.json())
-        .then(data => {
-            window.translations = data;
-        })
-        .catch(error => {
-            console.warn("Could not load language file:", error);
-            window.translations = {};
-        });
-}
-
-function loadConfiguration() {
-    return fetch('/static/config.json')
-        .then(response => response.json())
-        .then(data => {
-            window.config = data;
-        })
-        .catch(error => {
-            console.warn("Could not load config file:", error);
-            window.config = {};
-        });
-}
-
-function loadHealthTips() {
-    return fetch('/static/health_tips.json')
-        .then(response => response.json())
-        .then(data => {
-            window.healthTips = data;
-        })
-        .catch(error => {
-            console.warn("Could not load health tips:", error);
-            window.healthTips = {};
-        });
-}
-
-function loadIcons() {
-    // Icons are now handled gracefully - no need to preload
-    return Promise.resolve();
-}
-
-function loadSavedPortions() {
-    const saved = localStorage.getItem('recipePortions');
-    if (saved) {
-        try {
-            window.currentPortions = parseInt(saved) || 4;
-        } catch (e) {
-            window.currentPortions = 4;
-        }
-    } else {
-        window.currentPortions = 4;
-    }
-}
-
-// Translation helper
-function t(key) {
-    return window.translations && window.translations[key] ? window.translations[key] : key;
-}
-
-// Initialize variables
-let ingredientSortOrder = 'alphabet';
-let currentPortions = 4; {
-        console.error("Error loading configuration:", error);
     }
 });
