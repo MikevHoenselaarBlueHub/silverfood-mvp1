@@ -286,16 +286,6 @@ async function analyzeRecipe() {
         loader.style.display = "none";
         hideLoadingMessage();
     }
-    } catch (globalError) {
-        console.error("Global error in analyzeRecipe:", globalError);
-        showError("Er is een onverwachte fout opgetreden. Herlaad de pagina en probeer opnieuw.", "Onverwachte fout");
-
-        // Reset UI in case of global error
-        analyzeBtn.disabled = false;
-        btnText.textContent = "Analyseer Recept";
-        loader.style.display = "none";
-        hideLoadingMessage();
-    }
 }
 
 async function analyzeText() {
