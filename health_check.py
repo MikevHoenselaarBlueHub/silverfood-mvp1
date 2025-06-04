@@ -125,6 +125,7 @@ def main():
         for issue in issues:
             print(f"  - {issue}")
         print("\n🔧 To fix, run: python startup.py")
+        print("   Or manually: upm add <package_name>")
         return False
     else:
         print("✅ All checks passed! API should work correctly.")
