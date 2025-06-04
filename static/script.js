@@ -1,4 +1,3 @@
-
 // Language support
 let currentLanguage = 'nl';
 let translations = {};
@@ -20,7 +19,7 @@ async function loadLanguage(lang = 'nl') {
 function t(key) {
     const keys = key.split('.');
     let value = translations[currentLanguage];
-    
+
     for (const k of keys) {
         if (value && typeof value === 'object') {
             value = value[k];
@@ -28,7 +27,7 @@ function t(key) {
             break;
         }
     }
-    
+
     return value || key;
 }
 
@@ -81,7 +80,7 @@ function createPortionsControl() {
 function updatePortions(newPortions) {
     currentPortions = parseInt(newPortions);
     document.getElementById('portions-display').textContent = currentPortions;
-    
+
     if (Object.keys(originalNutrition).length > 0) {
         updateNutritionDisplay();
     }
@@ -90,9 +89,9 @@ function updatePortions(newPortions) {
 function updateNutritionDisplay() {
     const nutritionGrid = document.getElementById('nutritionGrid');
     if (!nutritionGrid || !originalNutrition) return;
-    
+
     const portionMultiplier = currentPortions / 4; // Assuming original is for 4 people
-    
+
     let nutritionHtml = '';
     const nutritionKeys = {
         'calories': t('calories'),
@@ -101,7 +100,7 @@ function updateNutritionDisplay() {
         'fat': t('fat'),
         'fiber': t('fiber')
     };
-    
+
     Object.entries(nutritionKeys).forEach(([key, label]) => {
         if (originalNutrition[key]) {
             const adjustedValue = Math.round(originalNutrition[key] * portionMultiplier);
@@ -109,7 +108,7 @@ function updateNutritionDisplay() {
             nutritionHtml += `<div class="nutrition-item"><span class="nutrition-label">${label}</span><span class="nutrition-value">${adjustedValue}${unit}</span></div>`;
         }
     });
-    
+
     nutritionGrid.innerHTML = nutritionHtml;
 }
 
@@ -135,11 +134,11 @@ function updateGoalsDisplay() {
     const allGoals = document.querySelectorAll('.goal-item');
     const visibleGoals = [];
     const hiddenGoalsElements = [];
-    
+
     allGoals.forEach(goal => {
         const titleElement = goal.querySelector('.goal-title');
         const goalName = titleElement ? titleElement.textContent.trim() : '';
-        
+
         if (hiddenGoals.includes(goalName)) {
             goal.classList.add('hidden');
             hiddenGoalsElements.push(goal);
@@ -148,7 +147,7 @@ function updateGoalsDisplay() {
             visibleGoals.push(goal);
         }
     });
-    
+
     // Show/hide toggle button
     updateHiddenGoalsToggle();
 }
@@ -156,10 +155,10 @@ function updateGoalsDisplay() {
 function updateHiddenGoalsToggle() {
     const container = document.getElementById('healthGoals');
     if (!container) return;
-    
+
     let toggleButton = document.getElementById('hidden-goals-toggle');
     let hiddenSection = document.getElementById('hidden-goals-section');
-    
+
     if (hiddenGoals.length > 0) {
         if (!toggleButton) {
             toggleButton = document.createElement('div');
@@ -167,14 +166,14 @@ function updateHiddenGoalsToggle() {
             toggleButton.className = 'hidden-goals-toggle';
             toggleButton.onclick = toggleHiddenGoalsSection;
             container.appendChild(toggleButton);
-            
+
             hiddenSection = document.createElement('div');
             hiddenSection.id = 'hidden-goals-section';
             hiddenSection.className = 'hidden-goals-section';
             hiddenSection.style.display = 'none';
             container.appendChild(hiddenSection);
         }
-        
+
         toggleButton.textContent = t('show_hidden_goals');
         toggleButton.title = `${hiddenGoals.length} verborgen doelen bekijken`;
     } else {
@@ -186,13 +185,13 @@ function updateHiddenGoalsToggle() {
 function toggleHiddenGoalsSection() {
     const section = document.getElementById('hidden-goals-section');
     const button = document.getElementById('hidden-goals-toggle');
-    
+
     if (!section || !button) return;
-    
+
     if (section.style.display === 'none') {
         section.style.display = 'block';
         button.textContent = t('hide_hidden_goals');
-        
+
         // Move hidden goals to section
         const hiddenGoalElements = document.querySelectorAll('.goal-item.hidden');
         section.innerHTML = '';
@@ -224,7 +223,7 @@ function setupDragAndDrop() {
             draggedElement = item;
             item.classList.add('dragging');
             e.dataTransfer.effectAllowed = 'move';
-            
+
             placeholder = createPlaceholder();
         });
 
@@ -242,16 +241,16 @@ function setupDragAndDrop() {
         item.addEventListener('dragover', (e) => {
             e.preventDefault();
             e.dataTransfer.dropEffect = 'move';
-            
+
             if (draggedElement && draggedElement !== item) {
                 const rect = item.getBoundingClientRect();
                 const midpoint = rect.top + rect.height / 2;
-                
+
                 // Clear previous indicators
                 document.querySelectorAll('.drag-over, .drag-over-bottom').forEach(el => {
                     el.classList.remove('drag-over', 'drag-over-bottom');
                 });
-                
+
                 if (e.clientY < midpoint) {
                     item.classList.add('drag-over');
                     if (placeholder.parentNode !== item.parentNode || placeholder.nextSibling !== item) {
@@ -509,25 +508,22 @@ async function analyzeRecipe() {
             try {
                 errorData = await response.json();
             } catch (parseError) {
-                console.error("Failed to parse error response:", parseError);
-                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                console.error("Could not parse error response as JSON:", parseError);
+                throw new Error(`HTTP ${response.status}: Server gaf geen geldige JSON response`);
             }
-            throw new Error(
-                errorData.detail ||
-                    `HTTP ${response.status}: ${response.statusText}`,
-            );
+            throw new Error(errorData.detail || `HTTP ${response.status}`);
         }
 
         let data;
         try {
             data = await response.json();
         } catch (parseError) {
-            console.error("Failed to parse response:", parseError);
-            throw new Error("Ongeldige response van server. Probeer opnieuw.");
+            console.error("Could not parse response as JSON:", parseError);
+            throw new Error("Server gaf geen geldige JSON response. Probeer het opnieuw.");
         }
 
-        // Veilige controle van data structuur
         if (!data || typeof data !== 'object') {
+            console.error("Invalid response structure:", data);
             throw new Error("Ongeldige response structuur van server.");
         }
 
@@ -544,21 +540,17 @@ async function analyzeRecipe() {
         displayResults(safeData);
     } catch (error) {
         console.error("Analysis Error:", error);
+        let errorMessage = error.message || error.detail || "Onbekende fout";
+        let userMessage = "";
+        let errorTitle = "Analyse fout";
 
-        // Check if error has message property
-        const errorMessage = error?.message || error?.detail || String(error);
-        console.log("Error message:", errorMessage);
-
-        // Specifieke foutafhandeling met meer detail
-        let userMessage = "Er is een onverwachte fout opgetreden. Probeer het later opnieuw.";
-        let errorTitle = "Fout bij analyseren";
-
-        if (
-            errorMessage.includes("Failed to fetch") ||
-            errorMessage.includes("NetworkError")
-        ) {
+        // Check if error is from fetch response
+        if (error.name === 'TypeError' && error.message.includes('Failed to fetch')) {
             userMessage = "Geen internetverbinding. Controleer uw verbinding en probeer opnieuw.";
             errorTitle = "Verbindingsfout";
+        } else if (errorMessage.includes("Ongeldige response structuur")) {
+            userMessage = "De server gaf een onverwachte respons. Dit kan komen door een tijdelijke storing. Probeer het opnieuw.";
+            errorTitle = "Server communicatie fout";
         } else if (errorMessage.includes("niet ondersteund")) {
             userMessage = "Deze website wordt niet ondersteund. Probeer een recept van AH Allerhande of Jumbo.";
             errorTitle = "Website niet ondersteund";
@@ -580,15 +572,13 @@ async function analyzeRecipe() {
         ) {
             userMessage = "Deze website blokkeert automatische toegang. Probeer een andere recept-URL van een ondersteunde website.";
             errorTitle = "Website blokkeert toegang";
-        } else if (errorMessage) {
+        } else if (errorMessage && errorMessage !== "Onbekende fout") {
             userMessage = errorMessage;
+        } else {
+            userMessage = "Er is een onverwachte fout opgetreden. Probeer het opnieuw.";
         }
 
         showError(userMessage, errorTitle);
-
-        // Log voor debugging
-        console.log("Failed input:", inputData);
-        console.log("Error details:", error);
     } finally {
         // Reset UI
         const analyzeBtn = getAnalyzeBtn();
@@ -718,7 +708,7 @@ function displayResults(data) {
             const color = score >= 7 ? '#4CAF50' : score >= 5 ? '#FF9800' : '#F44336';
             const translatedGoal = t(`health_goals_list.${goal}`) || goal;
             const isHidden = hiddenGoals.includes(goal);
-            
+
             goalsHtml += `
                 <div class="goal-item ${isHidden ? 'hidden' : ''}" draggable="true">
                     <div class="goal-header">
@@ -741,7 +731,7 @@ function displayResults(data) {
             `;
         }
         healthGoals.innerHTML = goalsHtml;
-        
+
         // Update goals display and add drag and drop
         updateGoalsDisplay();
         setupDragAndDrop();
@@ -751,23 +741,23 @@ function displayResults(data) {
     const healthExplanation = document.getElementById('healthExplanation');
     if (healthExplanation) {
         let explanationHtml = '';
-        
+
         // Add health score explanation first
         if (data.health_score_explanation) {
             explanationHtml += `<div class="explanation-item"><strong>${t('how_we_calculate')}</strong><br>${data.health_score_explanation}</div>`;
         }
-        
+
         // Add other health explanations
         if (data.health_explanation && data.health_explanation.length > 0) {
             data.health_explanation.forEach(explanation => {
                 explanationHtml += `<div class="explanation-item">${explanation}</div>`;
             });
         }
-        
+
         if (!explanationHtml) {
             explanationHtml = '<div class="explanation-item">Geen uitleg beschikbaar.</div>';
         }
-        
+
         healthExplanation.innerHTML = explanationHtml;
     }
 
