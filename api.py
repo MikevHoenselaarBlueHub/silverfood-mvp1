@@ -302,7 +302,17 @@ async def analyse_text_endpoint(request: Request):
 @app.get("/health")
 async def health_check():
     """Simple health check endpoint."""
-    return {"status": "healthy", "timestamp": time.time()}
+    api_key = os.getenv("OPENAI_API_KEY")
+    openai_available = bool(api_key)
+    
+    if not openai_available:
+        logger.info("Health check: OpenAI API key not configured")
+    
+    return {
+        "status": "healthy", 
+        "timestamp": time.time(),
+        "openai_available": openai_available
+    }
 
 @app.post("/calculate-portions")
 async def calculate_portions_endpoint(request: Request):
@@ -412,15 +422,165 @@ async def explain_healthy_ingredients(ingredients: str):
     """Generate AI explanation for healthy ingredients"""
     return await get_ai_explanation(ingredients, "healthy")
 
+@app.get("/ingredient-substitutions")
+async def get_ingredient_substitutions(name: str):
+    """Get AI-generated substitutions for unhealthy ingredients"""
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"substitutions": [], "api_key_missing": True}
+        
+        prompt = f"""
+        Geef 2-3 gezondere alternatieven voor {name} in Nederlandse keukeningrediënten.
+        
+        Antwoord alleen met de ingrediënten gescheiden door komma's, bijvoorbeeld: "volkoren pasta, quinoa, courgetti"
+        
+        Geen uitleg, alleen de ingrediënten.
+        """
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "Je bent een voedingsexpert die gezonde alternatieven voorstelt."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 50,
+            "temperature": 0.8
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=8
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            substitutions_text = result['choices'][0]['message']['content'].strip()
+            substitutions = [s.strip() for s in substitutions_text.split(',')]
+            return {"substitutions": substitutions}
+        else:
+            logger.error(f"OpenAI API error for substitutions {name}: {response.status_code}")
+            return {"substitutions": []}
+            
+    except Exception as e:
+        logger.error(f"Substitutions error for {name}: {e}")
+        return {"substitutions": []}
+
+@app.get("/ingredient-description")
+async def get_ingredient_description(name: str, healthy: bool = True):
+    """Get AI description for individual ingredient"""
+    try:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            return {"description": None, "api_key_missing": True}
+        
+        # Get nutrition data from Open Food Facts first
+        nutrition_data = await get_nutrition_from_openfoodfacts(name)
+        
+        # Create AI prompt based on health score and nutrition data
+        nutrition_info = ""
+        if nutrition_data:
+            nutrition_info = f"\nVoedingswaarden per 100g: {nutrition_data}"
+        
+        if healthy:
+            prompt = f"""
+            Leg in 20-30 woorden uit waarom {name} gezond is. Focus op de belangrijkste voedingsstoffen en gezondheidsvoordelen.{nutrition_info}
+            
+            Geef een korte, positieve uitleg in het Nederlands.
+            """
+        else:
+            prompt = f"""
+            Leg in 20-30 woorden uit waarom {name} minder gezond kan zijn en wat je in plaats daarvan zou kunnen gebruiken.{nutrition_info}
+            
+            Geef een korte, begrijpelijke uitleg in het Nederlands met een praktische tip.
+            """
+        
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        data = {
+            "model": "gpt-3.5-turbo",
+            "messages": [
+                {"role": "system", "content": "Je bent een voedingsexpert die korte, duidelijke uitleg geeft over ingrediënten."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 80,
+            "temperature": 0.7
+        }
+        
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=data,
+            timeout=10
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            description = result['choices'][0]['message']['content'].strip()
+            return {"description": description, "nutrition": nutrition_data}
+        else:
+            logger.error(f"OpenAI API error for ingredient {name}: {response.status_code}")
+            return {"description": None}
+            
+    except Exception as e:
+        logger.error(f"Ingredient description error for {name}: {e}")
+        return {"description": None}
+
+async def get_nutrition_from_openfoodfacts(ingredient_name: str):
+    """Get nutrition data from Open Food Facts API"""
+    try:
+        # Clean ingredient name for search
+        clean_name = ingredient_name.lower().strip()
+        search_url = f"https://world.openfoodfacts.org/cgi/search.pl?search_terms={clean_name}&search_simple=1&action=process&json=1"
+        
+        response = requests.get(search_url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            
+            if data.get('products') and len(data['products']) > 0:
+                product = data['products'][0]
+                nutriments = product.get('nutriments', {})
+                
+                nutrition_info = {}
+                if 'energy-kcal_100g' in nutriments:
+                    nutrition_info['energie'] = f"{nutriments['energy-kcal_100g']} kcal"
+                if 'proteins_100g' in nutriments:
+                    nutrition_info['eiwitten'] = f"{nutriments['proteins_100g']}g"
+                if 'carbohydrates_100g' in nutriments:
+                    nutrition_info['koolhydraten'] = f"{nutriments['carbohydrates_100g']}g"
+                if 'fiber_100g' in nutriments:
+                    nutrition_info['vezels'] = f"{nutriments['fiber_100g']}g"
+                if 'fat_100g' in nutriments:
+                    nutrition_info['vetten'] = f"{nutriments['fat_100g']}g"
+                
+                if nutrition_info:
+                    return nutrition_info
+        
+        return None
+    except Exception as e:
+        logger.error(f"Open Food Facts API error for {ingredient_name}: {e}")
+        return None
+
 async def get_ai_explanation(ingredients: str, explanation_type: str):
     """Generate AI explanation for ingredients"""
     try:
         # OpenAI API key from environment variables
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            logger.info("OpenAI API key not configured - using fallback explanations")
+            logger.warning("⚠️  OPENAI_API_KEY not found in environment variables")
+            print("⚠️  OPENAI_API_KEY not configured in Secrets - AI explanations disabled")
             fallback_msg = "Deze ingrediënten zijn rijk aan vitaminen en mineralen." if explanation_type == "healthy" else "Een voedingsexpert zou u adviseren om deze ingrediënten in balans te houden met veel groenten en fruit."
-            return {"explanation": fallback_msg}
+            return {"explanation": fallback_msg, "api_key_missing": True}
 
         headers = {
             "Authorization": f"Bearer {api_key}",

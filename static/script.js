@@ -488,6 +488,11 @@ function displayHealthGoals(healthGoals) {
         muscle_building: "Herstel/Spieren",
         energy_boost: "Meer energie",
         blood_pressure: "Bloeddruk verlagen",
+        heart_health: "Hart gezondheid",
+        diabetes_control: "Diabetes controle",
+        bone_health: "Botgezondheid",
+        immune_system: "Immuunsysteem",
+        brain_health: "Hersengezondheid"
     };
 
     // Load saved order from localStorage
@@ -571,45 +576,61 @@ let draggedElement = null;
 function handleDragStart(e) {
     draggedElement = this;
     this.style.opacity = "0.5";
+    this.classList.add('dragging');
     e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/html", this.outerHTML);
 }
 
 function handleDragOver(e) {
-    if (e.preventDefault) {
-        e.preventDefault();
-    }
+    e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    
+    // Visual feedback
+    const afterElement = getDragAfterElement(e.currentTarget.parentNode, e.clientY);
+    if (afterElement == null) {
+        e.currentTarget.parentNode.appendChild(draggedElement);
+    } else {
+        e.currentTarget.parentNode.insertBefore(draggedElement, afterElement);
+    }
     return false;
 }
 
 function handleDrop(e) {
-    if (e.stopPropagation) {
-        e.stopPropagation();
-    }
+    e.preventDefault();
+    e.stopPropagation();
 
-    if (draggedElement !== this) {
-        const container = this.parentNode;
-        const draggedIndex = Array.from(container.children).indexOf(
-            draggedElement,
-        );
-        const targetIndex = Array.from(container.children).indexOf(this);
-
-        if (draggedIndex < targetIndex) {
-            container.insertBefore(draggedElement, this.nextSibling);
-        } else {
-            container.insertBefore(draggedElement, this);
-        }
-
-        // Save new order
+    if (draggedElement && draggedElement !== this) {
+        // Save new order after drop
         saveGoalsOrder();
     }
-
     return false;
 }
 
 function handleDragEnd(e) {
     this.style.opacity = "1";
+    this.classList.remove('dragging');
     draggedElement = null;
+    
+    // Clean up any temporary visual changes
+    const container = document.getElementById("healthGoals");
+    Array.from(container.children).forEach(child => {
+        child.style.transform = "";
+    });
+}
+
+function getDragAfterElement(container, y) {
+    const draggableElements = [...container.querySelectorAll('.goal-item:not(.dragging)')];
+    
+    return draggableElements.reduce((closest, child) => {
+        const box = child.getBoundingClientRect();
+        const offset = y - box.top - box.height / 2;
+        
+        if (offset < 0 && offset > closest.offset) {
+            return { offset: offset, element: child };
+        } else {
+            return closest;
+        }
+    }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 function saveGoalsOrder() {
@@ -699,17 +720,26 @@ function displayHealthExplanation(explanations) {
         item.textContent = explanation;
         container.appendChild(item);
 
-        // Add AI explanation for unhealthy ingredients
+        // Add AI explanation for unhealthy ingredients (only if API key available)
         if (explanation.includes("❌ Minder gezonde ingrediënten")) {
             const unhealthyIngredients = explanation.replace(
                 "❌ Minder gezonde ingrediënten (score 1-3): ",
                 "",
             );
 
-            const aiButton = document.createElement("button");
-            aiButton.textContent =
-                "🤖 Krijg AI uitleg waarom dit minder gezond is";
-            aiButton.className = "ai-explanation-btn";
+            // Check if OpenAI is available first
+            fetch('/health')
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.openai_available) {
+                        console.log("OpenAI API niet beschikbaar - AI knoppen uitgeschakeld");
+                        return;
+                    }
+                    
+                    const aiButton = document.createElement("button");
+                    aiButton.textContent =
+                        "🤖 Krijg AI uitleg waarom dit minder gezond is";
+                    aiButton.className = "ai-explanation-btn";
             aiButton.style.cssText = `
                 margin-top: 10px;
                 padding: 8px 16px;
@@ -776,6 +806,60 @@ function displayHealthExplanation(explanations) {
             item.appendChild(aiButton);
         }
     });
+}
+
+async function loadIngredientSubstitutions(ingredientName, container) {
+    try {
+        const response = await fetch(`/ingredient-substitutions?name=${encodeURIComponent(ingredientName)}`);
+        const data = await response.json();
+        
+        if (data.substitutions && data.substitutions.length > 0) {
+            const substitutionText = data.substitutions.join(', ');
+            container.innerHTML = `🔄 Gezondere alternatieven: <strong>${substitutionText}</strong>`;
+            container.style.cssText = `
+                margin: 8px 0;
+                padding: 10px;
+                background: rgba(32, 201, 151, 0.1);
+                border-left: 3px solid #20c997;
+                border-radius: 5px;
+                font-size: 0.9rem;
+                line-height: 1.4;
+                color: #444;
+            `;
+        } else {
+            container.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Failed to load substitutions:', error);
+        container.style.display = 'none';
+    }
+}
+
+async function loadIngredientDescription(ingredientName, healthScore, container) {
+    try {
+        const isHealthy = healthScore >= 6;
+        const response = await fetch(`/ingredient-description?name=${encodeURIComponent(ingredientName)}&healthy=${isHealthy}`);
+        const data = await response.json();
+        
+        if (data.description) {
+            container.innerHTML = `💭 ${data.description}`;
+            container.style.cssText = `
+                margin: 8px 0;
+                padding: 10px;
+                background: ${isHealthy ? 'rgba(40, 167, 69, 0.1)' : 'rgba(255, 107, 107, 0.1)'};
+                border-left: 3px solid ${isHealthy ? '#28a745' : '#ff6b6b'};
+                border-radius: 5px;
+                font-size: 0.9rem;
+                line-height: 1.4;
+                color: #444;
+            `;
+        } else {
+            container.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Failed to load ingredient description:', error);
+        container.style.display = 'none';
+    }
 }
 
 async function loadAIExplanation(ingredients, button, type = "unhealthy") {
@@ -940,6 +1024,17 @@ function displayAllIngredients(ingredients) {
             }
         }
 
+        // AI-gegenereerde ingredient uitleg
+        if (safeIngredient.name && safeIngredient.name !== 'Onbekend ingrediënt') {
+            const descriptionDiv = document.createElement("div");
+            descriptionDiv.className = "ingredient-description";
+            descriptionDiv.innerHTML = "⏳ AI genereert uitleg...";
+            info.appendChild(descriptionDiv);
+            
+            // Load AI description
+            loadIngredientDescription(safeIngredient.name, safeIngredient.health_score, descriptionDiv);
+        }
+
         // Gezondheidsweetje (alleen als het een echte tip is, niet de generieke tekst)
         if (
             ingredient.health_fact &&
@@ -952,7 +1047,17 @@ function displayAllIngredients(ingredients) {
             info.appendChild(healthFact);
         }
 
-        // Toon substitutie als beschikbaar
+        // AI-gegenereerde vervangingen voor ongezonde ingrediënten
+        if (safeIngredient.health_score < 6 && safeIngredient.name !== 'Onbekend ingrediënt') {
+            const substitutionDiv = document.createElement("div");
+            substitutionDiv.className = "ingredient-substitution";
+            substitutionDiv.innerHTML = "⏳ AI zoekt gezondere alternatieven...";
+            info.appendChild(substitutionDiv);
+            
+            loadIngredientSubstitutions(safeIngredient.name, substitutionDiv);
+        }
+
+        // Toon substitutie als beschikbaar (bestaand systeem)
         if (ingredient.substitution) {
             const substitution = document.createElement("div");
             substitution.className = "substitution";
