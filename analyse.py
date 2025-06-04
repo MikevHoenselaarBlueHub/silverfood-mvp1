@@ -70,17 +70,21 @@ def smart_ingredient_scraping(url: str) -> Tuple[List[str], str]:
     logger.info(f"Starting smart scraping for {url}")
 
     # Try different scraping methods in order of preference
-    methods = [
-        ("requests_json_ld", scrape_with_requests_json_ld),
-        ("requests_patterns", scrape_with_requests_patterns),
-    ]
-
+    methods = []
+    
     # Add AH-specific method if it's an AH URL
     if 'ah.nl' in url.lower():
-        methods.insert(0, ("ah_specific", scrape_ah_specific))
-
+        methods.append(("ah_specific", scrape_ah_specific))
+    
+    # Always try these methods
+    methods.extend([
+        ("requests_json_ld", scrape_with_requests_json_ld),
+        ("requests_patterns", scrape_with_requests_patterns),
+    ])
+    
+    # Add Selenium as last resort only if available
     if SELENIUM_AVAILABLE:
-        methods.insert(-1, ("selenium", scrape_with_selenium))
+        methods.append(("selenium", scrape_with_selenium))
 
     for method_name, method_func in methods:
         try:
@@ -104,6 +108,10 @@ def smart_ingredient_scraping(url: str) -> Tuple[List[str], str]:
 
             continue
 
+    # Final fallback: suggest manual copy-paste for AH.nl
+    if 'ah.nl' in url.lower():
+        raise Exception("AH.nl blokkeert automatische toegang. Kopieer de ingrediënten handmatig van de receptpagina en plak ze in het tekstveld voor analyse.")
+    
     raise Exception("Geen ingrediënten gevonden met alle beschikbare methoden")
 
 def scrape_with_requests_json_ld(url: str) -> Tuple[List[str], str]:
@@ -237,28 +245,77 @@ def scrape_with_requests_patterns(url: str) -> Tuple[List[str], str]:
 
 def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
     """AH-specific scraping method with multiple fallbacks."""
+    # Rotate between different realistic user agents
+    user_agents = [
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15'
+    ]
+    
+    import random
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+        'User-Agent': random.choice(user_agents),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
         'Accept-Language': 'nl-NL,nl;q=0.9,en;q=0.8',
         'Accept-Encoding': 'gzip, deflate, br',
-        'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
         'Sec-Fetch-Dest': 'document',
         'Sec-Fetch-Mode': 'navigate',
-        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-Site': 'cross-site',
         'Sec-Fetch-User': '?1',
-        'Upgrade-Insecure-Requests': '1'
+        'Sec-Ch-Ua': '"Chromium";v="122", "Not(A:Brand";v="24", "Google Chrome";v="122"',
+        'Sec-Ch-Ua-Mobile': '?0',
+        'Sec-Ch-Ua-Platform': '"Windows"'
     }
 
     session = requests.Session()
     session.headers.update(headers)
 
-    # Add delay to appear more human-like
-    time.sleep(1)
+    # Add random delay to appear more human-like
+    time.sleep(random.uniform(2, 5))
 
     try:
-        response = session.get(url, timeout=20, allow_redirects=True)
+        # Try with different approaches
+        attempts = [
+            # Attempt 1: Direct request
+            lambda: session.get(url, timeout=25, allow_redirects=True),
+            # Attempt 2: With referer
+            lambda: session.get(url, timeout=25, allow_redirects=True, headers={**headers, 'Referer': 'https://www.ah.nl/allerhande'}),
+            # Attempt 3: Simulated navigation
+            lambda: _simulate_ah_navigation(session, url, headers)
+        ]
+        
+        response = None
+        last_error = None
+        
+        for i, attempt in enumerate(attempts):
+            try:
+                logger.info(f"AH scraping attempt {i+1}/3")
+                response = attempt()
+                if response.status_code == 200:
+                    break
+                elif response.status_code == 403:
+                    logger.warning(f"Attempt {i+1} blocked with 403, trying next method")
+                    time.sleep(random.uniform(3, 7))  # Longer delay after being blocked
+                    continue
+                else:
+                    logger.warning(f"Attempt {i+1} failed with status {response.status_code}")
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Attempt {i+1} failed: {e}")
+                time.sleep(random.uniform(2, 4))
+                continue
+        
+        if not response or response.status_code != 200:
+            if response and response.status_code == 403:
+                raise Exception("AH.nl blokkeert automatische toegang. Probeer een ander recept of kopieer de ingrediënten handmatig.")
+            elif last_error:
+                raise last_error
+            else:
+                raise Exception("Alle AH scraping pogingen gefaald")
         response.raise_for_status()
         soup = BeautifulSoup(response.content, 'html.parser')
 
@@ -353,6 +410,22 @@ def scrape_ah_specific(url: str) -> Tuple[List[str], str]:
     except requests.exceptions.RequestException as e:
         raise Exception(f"AH scraping request failed: {e}")
 
+def _simulate_ah_navigation(session, url, headers):
+    """Simulate human navigation to AH recipe page"""
+    try:
+        # First visit AH homepage
+        logger.debug("Simulating visit to AH homepage")
+        session.get("https://www.ah.nl/allerhande", headers=headers, timeout=15)
+        time.sleep(random.uniform(1, 3))
+        
+        # Then visit the recipe page
+        logger.debug("Navigating to recipe page")
+        return session.get(url, headers={**headers, 'Referer': 'https://www.ah.nl/allerhande'}, timeout=25)
+    except Exception as e:
+        logger.warning(f"Navigation simulation failed: {e}")
+        # Fallback to direct request
+        return session.get(url, headers=headers, timeout=25)
+
 def scrape_with_selenium(url: str) -> Tuple[List[str], str]:
     """Scrape using Selenium for dynamic content."""
     if not SELENIUM_AVAILABLE:
@@ -363,7 +436,14 @@ def scrape_with_selenium(url: str) -> Tuple[List[str], str]:
     options.add_argument('--no-sandbox')
     options.add_argument('--disable-dev-shm-usage')
     options.add_argument('--disable-gpu')
-    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+    options.add_argument('--disable-extensions')
+    options.add_argument('--disable-logging')
+    options.add_argument('--disable-web-security')
+    options.add_argument('--disable-features=VizDisplayCompositor')
+    options.add_argument('--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36')
+    options.add_argument('--window-size=1920,1080')
+    # Add longer page load timeout
+    options.add_argument('--page-load-strategy=normal')
 
     driver = None
     try:

@@ -36,14 +36,29 @@ def run_ui_tests():
     try:
         # Check if server is running
         import requests
-        response = requests.get("http://localhost:5000", timeout=5)
-        if response.status_code == 200:
-            webbrowser.open("http://localhost:5000/static/test_ui_functionality.html")
-            print("✅ UI test page opened. Please run tests manually in browser.")
-            return True
-        else:
-            print("❌ Server not responding at http://localhost:5000")
+        test_urls = [
+            "http://127.0.0.1:5000",
+            "http://localhost:5000"
+        ]
+        
+        server_running = False
+        for test_url in test_urls:
+            try:
+                response = requests.get(test_url, timeout=5)
+                if response.status_code == 200:
+                    webbrowser.open(f"{test_url}/static/test_ui_functionality.html")
+                    print("✅ UI test page opened. Please run tests manually in browser.")
+                    server_running = True
+                    break
+            except:
+                continue
+        
+        if not server_running:
+            print("❌ Server not responding. Please start the server first:")
+            print("   uvicorn api:app --host 0.0.0.0 --port 5000")
             return False
+            
+        return True
     except Exception as e:
         print(f"❌ Could not open UI tests: {e}")
         print("   Make sure the server is running on port 5000")

@@ -199,8 +199,13 @@ async def analyse_endpoint(request: Request, url: str):
         error_message = str(e)
         logger.error(f"Analysis failed for {client_ip}: {error_message}")
 
-        # Gebruikersvriendelijke foutmeldingen
-        if "geen ingrediënten" in error_message.lower():
+        # Gebruikersvriendelijke foutmeldingen voor AH.nl specifiek
+        if "ah.nl" in url.lower() and ("403" in error_message or "forbidden" in error_message.lower() or "blokkeert" in error_message.lower()):
+            raise HTTPException(
+                status_code=403,
+                detail="AH.nl blokkeert momenteel automatische toegang tot hun recepten. Dit is een tijdelijke beperking. Alternatieven:\n\n• Kopieer de ingrediënten handmatig en plak ze in het tekstveld\n• Probeer een recept van Jumbo, Leuke Recepten of 24Kitchen\n• Probeer het later opnieuw"
+            )
+        elif "geen ingrediënten" in error_message.lower():
             raise HTTPException(
                 status_code=400,
                 detail="Geen ingrediënten gevonden op deze pagina. Dit lijkt geen recept-pagina te zijn, of de website gebruikt een onbekende structuur. Probeer een andere recept-URL."

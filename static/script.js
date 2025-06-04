@@ -6,13 +6,16 @@ let translations = {};
 async function loadLanguage(lang = 'nl') {
     try {
         const response = await fetch('/static/lang.json');
-        if (response.ok) {
-            translations = await response.json();
-            currentLanguage = lang;
-            updateUILanguage();
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
+        const data = await response.json();
+        console.log('Language data loaded successfully');
+        translations = data;
+        currentLanguage = lang;
+        updateUILanguage();
     } catch (error) {
-        console.log('Language loading failed, using defaults');
+        console.warn('Language loading failed, using defaults:', error.message);
     }
 }
 
@@ -810,16 +813,20 @@ async function analyzeRecipe() {
 
         displayResults(safeData);
     } catch (error) {
-        console.error("Analysis Error:", error);
-        let errorMessage = "";
+        console.error("Analysis Error:", {
+            message: error.message,
+            type: error.constructor.name,
+            stack: error.stack
+        });
+        hideLoadingMessage();
 
-        if (error && typeof error === 'object') {
-            errorMessage = error.message || error.detail || "Onbekende fout";
+        let errorMessage = "Onbekende fout";
+        if (error && error.message) {
+            errorMessage = error.message;
         } else if (typeof error === 'string') {
             errorMessage = error;
-        } else {
-            errorMessage = "Onbekende fout";
         }
+
         let userMessage = "";
         let errorTitle = "Analyse fout";
 
