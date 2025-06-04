@@ -335,6 +335,39 @@ function changeSortOrder(newOrder) {
     }
 }
 
+function displayIngredientsList(ingredients) {
+    const allIngredients = document.getElementById('allIngredients');
+    if (!allIngredients) return;
+
+    let ingredientsHtml = '';
+    if (ingredients && ingredients.length > 0) {
+        // Sort ingredients based on current sort order
+        const sortedIngredients = sortIngredients([...ingredients], ingredientSortOrder);
+        
+        sortedIngredients.forEach(ingredient => {
+            const healthScore = ingredient.health_score || 5;
+            const healthClass = healthScore >= 7 ? 'healthy' : healthScore >= 5 ? 'neutral' : 'unhealthy';
+            const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
+            const capitalizedName = capitalizeName(ingredient.name);
+
+            ingredientsHtml += `
+                <div class="ingredient-item ${healthClass}">
+                    <div class="ingredient-info">
+                        <div class="ingredient-name">${capitalizedName}</div>
+                        ${ingredient.details ? `<div class="ingredient-details">${ingredient.details}</div>` : ''}
+                        ${ingredient.health_fact ? `<div class="health-fact">${ingredient.health_fact}</div>` : ''}
+                        ${ingredient.substitution ? `<div class="substitution">💡 Alternatief: ${ingredient.substitution}</div>` : ''}
+                    </div>
+                    <div class="health-badge">${healthIcon} ${healthScore}/10</div>
+                </div>
+            `;
+        });
+    } else {
+        ingredientsHtml = '<p>Geen ingrediënten gevonden.</p>';
+    }
+    allIngredients.innerHTML = ingredientsHtml;
+}
+
 function capitalizeName(name) {
     if (!name) return '';
     return name.charAt(0).toUpperCase() + name.slice(1);
@@ -763,39 +796,6 @@ function displayResults(data) {
     }
 
     updateNutritionDisplay();
-
-    function displayIngredientsList(ingredients) {
-    const allIngredients = document.getElementById('allIngredients');
-    if (!allIngredients) return;
-
-    let ingredientsHtml = '';
-    if (ingredients && ingredients.length > 0) {
-        // Sort ingredients based on current sort order
-        const sortedIngredients = sortIngredients([...ingredients], ingredientSortOrder);
-        
-        sortedIngredients.forEach(ingredient => {
-            const healthScore = ingredient.health_score || 5;
-            const healthClass = healthScore >= 7 ? 'healthy' : healthScore >= 5 ? 'neutral' : 'unhealthy';
-            const healthIcon = healthScore >= 7 ? '✅' : healthScore >= 5 ? '⚠️' : '❌';
-            const capitalizedName = capitalizeName(ingredient.name);
-
-            ingredientsHtml += `
-                <div class="ingredient-item ${healthClass}">
-                    <div class="ingredient-info">
-                        <div class="ingredient-name">${capitalizedName}</div>
-                        ${ingredient.details ? `<div class="ingredient-details">${ingredient.details}</div>` : ''}
-                        ${ingredient.health_fact ? `<div class="health-fact">${ingredient.health_fact}</div>` : ''}
-                        ${ingredient.substitution ? `<div class="substitution">💡 Alternatief: ${ingredient.substitution}</div>` : ''}
-                    </div>
-                    <div class="health-badge">${healthIcon} ${healthScore}/10</div>
-                </div>
-            `;
-        });
-    } else {
-        ingredientsHtml = '<p>Geen ingrediënten gevonden.</p>';
-    }
-    allIngredients.innerHTML = ingredientsHtml;
-}
 
     // Update health goals with hide/show functionality
     const healthGoals = document.getElementById('healthGoals');
