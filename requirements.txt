@@ -10,3 +10,13 @@ aiofiles==23.2.0
 python-multipart==0.0.6
 openai
 uvicorn
+aiofiles
+beautifulsoup4
+fastapi
+lxml
+openai
+python-multipart
+rapidfuzz
+requests
+selenium
+uvicorn[standard]
