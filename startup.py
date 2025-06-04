@@ -14,8 +14,14 @@ def install_requirements():
     if os.path.exists('requirements.txt'):
         print("🔧 Installing Python dependencies via UPM...")
         try:
-            # Use Replit's Universal Package Manager instead of pip
-            subprocess.check_call(['upm', 'add', '-r', 'requirements.txt'])
+            # Read requirements.txt and install each package individually
+            with open('requirements.txt', 'r') as f:
+                packages = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            
+            # Install packages individually since UPM doesn't support -r flag
+            for package in packages:
+                if package:
+                    subprocess.check_call(['upm', 'add', package])
             print("✅ Dependencies installed successfully")
         except subprocess.CalledProcessError as e:
             print(f"❌ Failed to install dependencies: {e}")

@@ -20,3 +20,13 @@ rapidfuzz
 requests
 selenium
 uvicorn[standard]
+aiofiles
+beautifulsoup4
+fastapi
+lxml
+openai
+python-multipart
+rapidfuzz
+requests
+selenium
+uvicorn[standard]

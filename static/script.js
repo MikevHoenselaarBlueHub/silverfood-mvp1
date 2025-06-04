@@ -584,7 +584,7 @@ function handleDragStart(e) {
 function handleDragOver(e) {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
-    
+
     // Visual feedback
     const afterElement = getDragAfterElement(e.currentTarget.parentNode, e.clientY);
     if (afterElement == null) {
@@ -610,7 +610,7 @@ function handleDragEnd(e) {
     this.style.opacity = "1";
     this.classList.remove('dragging');
     draggedElement = null;
-    
+
     // Clean up any temporary visual changes
     const container = document.getElementById("healthGoals");
     Array.from(container.children).forEach(child => {
@@ -620,11 +620,11 @@ function handleDragEnd(e) {
 
 function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('.goal-item:not(.dragging)')];
-    
+
     return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect();
         const offset = y - box.top - box.height / 2;
-        
+
         if (offset < 0 && offset > closest.offset) {
             return { offset: offset, element: child };
         } else {
@@ -735,7 +735,7 @@ function displayHealthExplanation(explanations) {
                         console.log("OpenAI API niet beschikbaar - AI knoppen uitgeschakeld");
                         return;
                     }
-                    
+
                     const aiButton = document.createElement("button");
                     aiButton.textContent =
                         "🤖 Krijg AI uitleg waarom dit minder gezond is";
@@ -812,7 +812,7 @@ async function loadIngredientSubstitutions(ingredientName, container) {
     try {
         const response = await fetch(`/ingredient-substitutions?name=${encodeURIComponent(ingredientName)}`);
         const data = await response.json();
-        
+
         if (data.substitutions && data.substitutions.length > 0) {
             const substitutionText = data.substitutions.join(', ');
             container.innerHTML = `🔄 Gezondere alternatieven: <strong>${substitutionText}</strong>`;
@@ -840,7 +840,7 @@ async function loadIngredientDescription(ingredientName, healthScore, container)
         const isHealthy = healthScore >= 6;
         const response = await fetch(`/ingredient-description?name=${encodeURIComponent(ingredientName)}&healthy=${isHealthy}`);
         const data = await response.json();
-        
+
         if (data.description) {
             container.innerHTML = `💭 ${data.description}`;
             container.style.cssText = `
@@ -988,7 +988,7 @@ function displayAllIngredients(ingredients) {
         } else {
             detailText = safeIngredient.original_text || safeIngredient.name;
         }
-        
+
         // Safe replace with null check
         if (detailText && typeof detailText === 'string') {
             details.innerHTML = detailText.replace(
@@ -1030,7 +1030,7 @@ function displayAllIngredients(ingredients) {
             descriptionDiv.className = "ingredient-description";
             descriptionDiv.innerHTML = "⏳ AI genereert uitleg...";
             info.appendChild(descriptionDiv);
-            
+
             // Load AI description
             loadIngredientDescription(safeIngredient.name, safeIngredient.health_score, descriptionDiv);
         }
@@ -1053,7 +1053,7 @@ function displayAllIngredients(ingredients) {
             substitutionDiv.className = "ingredient-substitution";
             substitutionDiv.innerHTML = "⏳ AI zoekt gezondere alternatieven...";
             info.appendChild(substitutionDiv);
-            
+
             loadIngredientSubstitutions(safeIngredient.name, substitutionDiv);
         }
 
