@@ -269,6 +269,50 @@ def extract_ingredients_from_text(text: str) -> List[str]:
     """Extract ingredients from direct text input with smart duplicate handling."""
     logger.info("Extracting ingredients from text")
 
+    # Check if the text contains HTML tags (likely not a recipe)
+    if '<' in text and '>' in text:
+        # Count HTML tags vs potential ingredients
+        html_tag_count = text.count('<')
+        lines_count = len([line for line in text.split('\n') if line.strip()])
+
+        # If more than 30% of lines contain HTML tags, try to extract text from HTML
+        if html_tag_count > (lines_count * 0.3):
+            logger.info("Text appears to be HTML, attempting to extract text content")
+            try:
+                from bs4 import BeautifulSoup
+                soup = BeautifulSoup(text, 'html.parser')
+
+                # Extract all text content and split into lines
+                extracted_text = soup.get_text(separator='\n')
+                potential_ingredients = []
+
+                for line in extracted_text.split('\n'):
+                    line = line.strip()
+                    if line and len(line) > 2:
+                        # Check if line looks like an ingredient
+                        if any(pattern in line.lower() for pattern in ['gram', 'g', 'kg', 'ml', 'l', 'el', 'tl', 'stuks', 'blik', 'pak', 'uien', 'gehakt', 'tomaten', 'room']):
+                            potential_ingredients.append(line)
+
+                if len(potential_ingredients) >= 2:
+                    logger.info(f"Extracted {len(potential_ingredients)} ingredients from HTML")
+                    # Continue with these extracted ingredients
+                    text = '\n'.join(potential_ingredients)
+                else:
+                    logger.warning("No clear ingredients found in HTML content")
+                    raise Exception("Geen duidelijke ingrediënten gevonden in de HTML-code. Plak alleen de recept tekst zonder HTML-opmaak.")
+
+            except ImportError:
+                logger.warning("BeautifulSoup not available for HTML parsing")
+                raise Exception("Deze tekst bevat HTML-code. Plak alleen de recept ingrediënten of instructies, geen HTML-code.")
+
+    # Check for common HTML elements that indicate this is still HTML after processing
+    html_indicators = ['<div', '<input', '<button', '<label', '<textarea', '<span', 'class=', 'id=', 'aria-']
+    html_indicator_count = sum(1 for indicator in html_indicators if indicator.lower() in text.lower())
+
+    if html_indicator_count >= 3:
+        logger.warning("Text still contains multiple HTML indicators after processing")
+        raise Exception("Deze tekst bevat nog steeds HTML-code. Plak alleen de recept ingrediënten of instructies, geen HTML-code.")
+
     # Split text into lines and filter for potential ingredients
     lines = [line.strip() for line in text.split('\n') if line.strip()]
 
@@ -324,6 +368,39 @@ def extract_ingredients_from_text(text: str) -> List[str]:
     # If no pattern matches found, use all cleaned lines
     if len(ingredients) < 3:
         ingredients = cleaned_lines
+
+    # Final validation - ensure we have reasonable ingredients
+    if len(ingredients) == 0:
+        raise Exception("Geen ingrediënten gevonden in de tekst.")
+
+    # Check if all "ingredients" are suspiciously similar (like HTML attributes)
+    if len(ingredients) > 10:
+        # Count how many contain common HTML patterns
+        html_like_count = sum(1 for ing in ingredients if any(pattern in ing.lower() for pattern in ['class=', 'id=', 'data-', 'aria-', '</', 'div>', 'button>', 'input>', 'onclick', 'style=']))
+
+        if html_like_count > (len(ingredients) * 0.3):
+            logger.warning(f"Found {html_like_count} HTML-like ingredients out of {len(ingredients)} total")
+            raise Exception("De tekst lijkt nog steeds HTML-code te bevatten in plaats van ingrediënten. Plak alleen de recept tekst.")
+
+    # Additional check for reasonable ingredient content
+    valid_ingredients = []
+    for ing in ingredients:
+        ing_lower = ing.lower()
+        # Skip obvious HTML artifacts
+        if any(html_pattern in ing_lower for html_pattern in ['onclick', 'javascript:', 'return false', 'class=', 'id=', 'data-', 'aria-']):
+            continue
+        # Skip very short or suspicious entries
+        if len(ing) < 3 or ing.isdigit():
+            continue
+        valid_ingredients.append(ing)
+
+    if len(valid_ingredients) < len(ingredients) * 0.5 and len(ingredients) > 5:
+        logger.warning(f"Only {len(valid_ingredients)} valid ingredients out of {len(ingredients)} total")
+        # Use only the valid ingredients if we have at least 2
+        if len(valid_ingredients) >= 2:
+            ingredients = valid_ingredients
+        else:
+            raise Exception("Geen geldige ingrediënten gevonden. Controleer of u echte recept-ingrediënten heeft geplakt.")
 
     logger.info(f"Extracted {len(ingredients)} ingredients from text after cleaning")
     return ingredients
@@ -588,15 +665,19 @@ def process_recipe_ingredients(ingredients: List[str], substitutions_db: Dict[st
             # Bereken health score
             health_score = calculate_health_score(normalized_name, substitution_data)
 
-            processed_ingredient = {
-                'name': normalized_name,
-                'health_score': health_score,
-                'details': substitution_data.get('details', ''),
-                'health_fact': substitution_data.get('health_fact', ''),
-                'substitution': substitution_data.get('substitution', '')
+            # Force translation to Dutch
+            dutch_name = translate_to_dutch(normalized_name)
+
+            # Create ingredient object with health score
+            ingredient_obj = {
+                "name": dutch_name,
+                "health_score": health_score,
+                "details": substitution_data.get('details', ''),
+                "health_fact": substitution_data.get('health_fact', ''),
+                "substitution": substitution_data.get('substitution', '')
             }
 
-            processed_ingredients.append(processed_ingredient)
+            processed_ingredients.append(ingredient_obj)
 
         except Exception as e:
             logger.warning(f"Error processing ingredient '{ingredient}': {e}")
@@ -707,7 +788,7 @@ def parse_ingredient_components(ingredient_text: str) -> Tuple[Optional[float], 
     ]
 
     for pattern in patterns:
-        match = re.match(pattern, text, re.IGNORECASE)
+        match = re.match(pattern, text, reIGNORECASE)
         if match:
             if len(match.groups()) == 3:
                 quantity_str, unit_str, name = match.groups()
@@ -894,7 +975,7 @@ def analyse(url_or_text: str) -> Dict[str, Any]:
     # Calculate overall metrics
     total_nutrition = calculate_total_nutrition(all_ingredients)
     health_goals_scores = calculate_health_goals_scores(all_ingredients, total_nutrition)
-    
+
     # Ensure all standard health goals are present
     standard_goals = {
         "Algemene gezondheid": 5,
@@ -921,7 +1002,7 @@ def analyse(url_or_text: str) -> Dict[str, Any]:
 
     # Calculate overall health score
     health_score = sum(health_goals_scores[goal] * 0.1 for goal in health_goals_scores)
-    
+
     # Get health explanation
     health_explanation = generate_health_explanation(all_ingredients, health_goals_scores)
 
@@ -929,7 +1010,7 @@ def analyse(url_or_text: str) -> Dict[str, Any]:
     health_score_explanation = generate_health_score_explanation(
         health_score, total_nutrition, all_ingredients, health_goals_scores
     )
-    
+
     swaps = generate_healthier_swaps(all_ingredients)
 
     result = {
@@ -1181,46 +1262,3 @@ De hoogste scores werden behaald voor {top_goals[0][0]} ({top_goals[0][1]}/10), 
     except Exception as e:
         logger.error(f"Error generating health score explanation: {e}")
         return "Er kon geen uitleg gegenereerd worden voor de gezondheidsscore."
-
-def process_recipe_ingredients(ingredients: List[str], substitutions_db: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Process recipe ingredients, normalize names, and calculate health scores."""
-    processed_ingredients = []
-
-    # Verwerk elk ingredient
-    for ingredient in ingredients:
-        try:
-            # Vertaal eerst naar Nederlands als het Engels lijkt te zijn
-            translated_name = translate_ingredient_to_dutch(ingredient)
-
-            # Normaliseer de naam
-            normalized_name = normalize_ingredient_name(translated_name)
-
-            # Skip als leeg
-            if not normalized_name:
-                continue
-
-            # Zoek in substitutie database
-            substitution_data = find_substitution(normalized_name, substitutions_db)
-
-            # Bereken health score
-            health_score = calculate_health_score(normalized_name, substitution_data)
-
-            # Force translation to Dutch
-            dutch_name = translate_to_dutch(normalized_name)
-
-            # Create ingredient object with health score
-            ingredient_obj = {
-                "name": dutch_name,
-                "health_score": health_score,
-                "details": substitution_data.get('details', ''),
-                "health_fact": substitution_data.get('health_fact', ''),
-                "substitution": substitution_data.get('substitution', '')
-            }
-
-            processed_ingredients.append(ingredient_obj)
-
-        except Exception as e:
-            logger.warning(f"Error processing ingredient '{ingredient}': {e}")
-            continue
-
-    return processed_ingredients
