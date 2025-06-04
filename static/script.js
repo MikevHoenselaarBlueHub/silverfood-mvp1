@@ -1,11 +1,20 @@
-// DOM elementen
-const recipeUrlInput = document.getElementById("recipeUrl");
-const analyzeBtn = document.getElementById("analyzeBtn");
-const btnText = document.querySelector(".btn-text");
-const loader = document.querySelector(".loader");
-const resultsDiv = document.getElementById("results");
-const errorDiv = document.getElementById("error");
-const errorMessage = document.getElementById("errorMessage");
+// DOM elementen - gebruik lazy loading om null errors te voorkomen
+function getElement(id) {
+    return document.getElementById(id);
+}
+
+function getElements(selector) {
+    return document.querySelectorAll(selector);
+}
+
+// Lazy getters voor DOM elementen
+function getRecipeUrlInput() { return getElement("recipeUrl"); }
+function getAnalyzeBtn() { return getElement("analyzeBtn"); }
+function getBtnText() { return document.querySelector(".btn-text"); }
+function getLoader() { return document.querySelector(".loader"); }
+function getResultsDiv() { return getElement("results"); }
+function getErrorDiv() { return getElement("error"); }
+function getErrorMessage() { return getElement("errorMessage"); }
 
 // Health tips functionaliteit
 let healthTips = [];
@@ -34,11 +43,29 @@ let exampleUrls = [
 // Wordt ingesteld na config laden
 recipeUrlInput.placeholder = "Voer een recept-URL in van elke website...";
 
-// Event listeners
-analyzeBtn.addEventListener("click", analyzeRecipe);
-recipeUrlInput.addEventListener("keypress", (e) => {
-    if (e.key === "Enter") {
-        analyzeRecipe();
+// Event listeners - veilig met null checks
+document.addEventListener('DOMContentLoaded', function() {
+    const analyzeBtn = getAnalyzeBtn();
+    const recipeUrlInput = getRecipeUrlInput();
+    
+    if (analyzeBtn) {
+        analyzeBtn.addEventListener("click", analyzeRecipe);
+    }
+    
+    if (recipeUrlInput) {
+        recipeUrlInput.addEventListener("keypress", (e) => {
+            if (e.key === "Enter") {
+                analyzeRecipe();
+            }
+        });
+        
+        // Input validatie met real-time feedback
+        recipeUrlInput.addEventListener("input", (e) => {
+            const url = e.target.value.trim();
+            if (url) {
+                validateUrl(url);
+            }
+        });
     }
 });
 
@@ -115,12 +142,22 @@ async function analyzeRecipe() {
     try {
         // Determine which tab is active
         const activeTab = document.querySelector('.tab-pane.active');
-        const isUrlTab = activeTab.id === 'url-tab';
+        const isUrlTab = activeTab && activeTab.id === 'url-tab';
 
         let inputData = '';
         let analysisType = '';
 
+        const recipeUrlInput = getRecipeUrlInput();
+        const analyzeBtn = getAnalyzeBtn();
+        const btnText = getBtnText();
+        const loader = getLoader();
+
         if (isUrlTab) {
+            if (!recipeUrlInput) {
+                showError("URL input niet gevonden", "Element fout");
+                return;
+            }
+            
             inputData = recipeUrlInput.value.trim();
             analysisType = 'url';
 
@@ -140,12 +177,18 @@ async function analyzeRecipe() {
                 return;
             }
         } else {
-            inputData = window.recipeTextArea.value.trim();
+            const textArea = window.recipeTextArea || getElement('recipeText');
+            if (!textArea) {
+                showError("Tekst input niet gevonden", "Element fout");
+                return;
+            }
+            
+            inputData = textArea.value.trim();
             analysisType = 'text';
 
             if (!inputData) {
                 showError("Voer eerst recept tekst in", "Geen tekst ingevuld");
-                window.recipeTextArea.focus();
+                textArea.focus();
                 return;
             }
 
@@ -154,15 +197,21 @@ async function analyzeRecipe() {
                     "De recept tekst is te kort. Voer meer ingrediënten of recept informatie in.",
                     "Tekst te kort"
                 );
-                window.recipeTextArea.focus();
+                textArea.focus();
                 return;
             }
         }
 
         // UI updates voor loading state - meer duidelijk voor senioren
-        analyzeBtn.disabled = true;
-        btnText.textContent = "Recept wordt geanalyseerd...";
-        loader.style.display = "block";
+        if (analyzeBtn) {
+            analyzeBtn.disabled = true;
+        }
+        if (btnText) {
+            btnText.textContent = "Recept wordt geanalyseerd...";
+        }
+        if (loader) {
+            loader.style.display = "block";
+        }
         hideError();
         hideResults();
 
@@ -281,9 +330,19 @@ async function analyzeRecipe() {
         console.log("Error details:", error);
     } finally {
         // Reset UI
-        analyzeBtn.disabled = false;
-        btnText.textContent = "Analyseer Recept";
-        loader.style.display = "none";
+        const analyzeBtn = getAnalyzeBtn();
+        const btnText = getBtnText();
+        const loader = getLoader();
+        
+        if (analyzeBtn) {
+            analyzeBtn.disabled = false;
+        }
+        if (btnText) {
+            btnText.textContent = "Analyseer Recept";
+        }
+        if (loader) {
+            loader.style.display = "none";
+        }
         hideLoadingMessage();
     }
 }
@@ -1189,52 +1248,71 @@ function showError(message, title = "Er is een fout opgetreden") {
         errorTitle.textContent = title;
     }
 
-    errorMessage.textContent = message;
-    errorDiv.style.display = "block";
-    errorDiv.scrollIntoView({ behavior: "smooth" });
-
-    // Focus op error voor screen readers
-    errorDiv.focus();
+    const errorMessage = document.getElementById("errorMessage");
+    const errorDiv = document.getElementById("error");
+    const resultsDiv = document.getElementById("results");
+    
+    if (errorMessage) {
+        errorMessage.textContent = message;
+    }
+    if (errorDiv) {
+        errorDiv.style.display = "block";
+        errorDiv.scrollIntoView({ behavior: "smooth" });
+        errorDiv.focus();
+    }
+    
+    // Als er geen error div is, toon in results
+    if (!errorDiv && resultsDiv) {
+        resultsDiv.innerHTML = `
+            <div class="error-message">
+                <h3>❌ ${title}</h3>
+                <p>${message}</p>
+                <p><small>Probeer een andere recept-URL of controleer of de URL correct is.</small></p>
+            </div>
+        `;
+    }
 
     // Toon fout voor screen readers
     announceToScreenReader(`Fout: ${title}. ${message}`);
 }
 
 function hideError() {
-    errorDiv.style.display = "none";
+    const errorDiv = document.getElementById("error");
+    if (errorDiv) {
+        errorDiv.style.display = "none";
+    }
 }
 
 function hideResults() {
-    resultsDiv.style.display = "none";
-}
-
-function showError(message) {
-    const resultsDiv = document.getElementById('results');
-    resultsDiv.innerHTML = `
-        <div class="error-message">
-            <h3>❌ Fout</h3>
-            <p>${message}</p>
-            <p><small>Probeer een andere recept-URL of controleer of de URL correct is.</small></p>
-        </div>
-    `;
+    const resultsDiv = document.getElementById("results");
+    if (resultsDiv) {
+        resultsDiv.style.display = "none";
+    }
 }
 
 function showTab(tabName) {
     // Hide all tabs
-    document.getElementById('url-tab').style.display = 'none';
-    document.getElementById('text-tab').style.display = 'none';
+    const urlTab = document.getElementById('url-tab');
+    const textTab = document.getElementById('text-tab');
+    
+    if (urlTab) urlTab.style.display = 'none';
+    if (textTab) textTab.style.display = 'none';
 
     // Show selected tab
-    document.getElementById(tabName).style.display = 'block';
+    const targetTab = document.getElementById(tabName);
+    if (targetTab) targetTab.style.display = 'block';
 
     // Update tab buttons
     document.querySelectorAll('.tab-button').forEach(btn => {
         btn.classList.remove('active');
     });
-    document.querySelector(`[onclick="showTab('${tabName}')"]`).classList.add('active');
+    
+    const activeButton = document.querySelector(`[onclick="showTab('${tabName}')"]`);
+    if (activeButton) activeButton.classList.add('active');
 
     // Clear results when switching tabs
-    document.getElementById('results').innerHTML = '';
+    const resultsDiv = document.getElementById('results');
+    if (resultsDiv) resultsDiv.innerHTML = '';
 }
 
 // Toegankelijkheidsfunctie voor screen readers
