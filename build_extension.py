@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python3
 """
 Build Chrome extension ZIP for easy installation

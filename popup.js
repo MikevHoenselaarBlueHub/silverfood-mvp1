@@ -12,7 +12,7 @@ class SilverfoodPopup {
             // Try to get config from the extension's local environment first
             const defaultUrls = [
                 'https://727cfeaf-e405-4336-bdae-5b555824a2d0-00-ceo3089p1ojz.janeway.replit.dev',
-                'http://localhost:5000'  // Fallback for development
+                'http://localhost:5000'  // Development URL - works without Core
             ];
             
             // Test each URL to find the working one
