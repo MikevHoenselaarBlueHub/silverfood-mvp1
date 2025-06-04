@@ -785,10 +785,6 @@ body {
     font-size: 0.95rem;
     color: #666;
     margin: 8px 0;
-    padding: 8px 12px;
-    background: rgba(40, 167, 69, 0.1);
-    border-radius: 8px;
-    border-left: 3px solid var(--success-color);
 }
 
 .health-fact {
